@@ -1,4 +1,4 @@
-import { PrimaryButton } from "../reusable/buttons";
+import { PrimaryButton } from "@/src/components/reusable/buttons";
 
 export function ServicesCTA() {
     return (

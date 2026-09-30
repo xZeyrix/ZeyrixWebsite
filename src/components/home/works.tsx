@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl"
 import { PrimaryButton, SecondaryButton } from "../reusable/buttons"
+import { works } from "@/src/data/works";
 
 interface Work {
     id: number,
@@ -28,27 +29,7 @@ function Work({ title, text, url }: Work) {
 
 export function MainWorks() {
     const t = useTranslations("home");
-
-    const works: Work[] = [
-        {
-            "id": 1,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-        {
-            "id": 2,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-        {
-            "id": 3,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-    ]
+    const worksArray = Object.values(works);
 
     return (
         <div className="bg-background px-6 py-12 flex flex-col gap-10 items-center">
@@ -58,8 +39,8 @@ export function MainWorks() {
             </div>
 
             <div className="flex flex-col gap-6">
-                {works.map((work) => (
-                    <Work key={work.id} id={work.id} title={work.title} text={work.text} url={work.url} />
+                {worksArray.map((work) => (
+                    <Work key={work.preview.title} title={work.preview.title} text={work.preview.title} url={work.preview.url} />
                 ))}
             </div>
 
