@@ -5,6 +5,7 @@ import SidebarIcon from "@/src/icons/sidebar.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import { SidebarMobile } from "../sidebar/SidebarMobile";
 import { Chat } from "@/src/types/chat";
+import { useRouter } from "next/navigation"; 
 
 type ChatHeaderProps = {
   chats: Chat[];
@@ -15,6 +16,7 @@ type ChatHeaderProps = {
 export function ChatHeader({ chats, renameChat, deleteChat }: ChatHeaderProps) {
   const [isSideBarOpen, setIsSideBarOpen] = useState(false);
   const [isSidebarMounted, setIsSidebarMounted] = useState(false);
+  const router = useRouter();
 
   const openSidebar = () => {
     setIsSidebarMounted(true);
@@ -33,7 +35,10 @@ export function ChatHeader({ chats, renameChat, deleteChat }: ChatHeaderProps) {
         <SidebarIcon className="text-foreground-muted size-5" />
       </div>
       <h4 className="text-foreground font-sans text-h4 px-3">Zeyrix AI</h4>
-      <div className="p-3.5">
+      <div 
+        className="p-3.5"
+        onClick={() => router.back()}
+      >
         <CloseIcon className="text-foreground-muted size-4" />
       </div>
 

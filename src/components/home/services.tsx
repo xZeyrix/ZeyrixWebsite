@@ -1,12 +1,6 @@
-import { useTranslations } from "next-intl"
-import { PrimaryButton, SecondaryButton } from "../reusable/buttons"
-
-interface Service {
-    id: number,
-    title: string,
-    text: string,
-    url: string,
-}
+import { useTranslations } from "next-intl";
+import { PrimaryButton, SecondaryButton } from "../reusable/buttons";
+import { services } from "@/src/data/services";
 
 function Service({ title, text, url }: Service) {
     return (
@@ -28,27 +22,7 @@ function Service({ title, text, url }: Service) {
 
 export function MainServices() {
     const t = useTranslations("home");
-
-    const services: Service[] = [
-        {
-            "id": 1,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-        {
-            "id": 2,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-        {
-            "id": 3,
-            "title": "A header for this card",
-            "text": "This is a small description for this test card. I’ll fill it a bit more to test how it looks.",
-            "url": "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
-        },
-    ]
+    const servicesArray = Object.values(services);
 
     return (
         <div className="bg-background px-6 py-12 flex flex-col gap-10 items-center">
@@ -58,8 +32,8 @@ export function MainServices() {
             </div>
 
             <div className="flex flex-col gap-6">
-                {services.map((service) => (
-                    <Service key={service.id} id={service.id} title={service.title} text={service.text} url={service.url} />
+                {servicesArray.map((service) => (
+                    <Service key={service.preview.title} title={service.preview.title} text={service.preview.text} url={service.preview.url} />
                 ))}
             </div>
 
