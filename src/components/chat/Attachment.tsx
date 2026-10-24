@@ -1,249 +1,410 @@
 import { PendingAttachment, Attachment } from "@/src/types/chat";
-import { useState, useEffect, useMemo } from "react";
-import { getCachedImage } from "@/src/lib/ImageCache";
+import { useEffect, useState, type ReactNode } from "react";
+import { getCachedFile } from "@/src/lib/FileCache";
 import FileIcon from "@/src/icons/file.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import ErrorIcon from "@/src/icons/warning.svg";
+import DownloadIcon from "@/src/icons/download.svg";
 import { AnimatePresence, motion } from "motion/react";
+import * as XLSX from "xlsx";
+import { createPortal } from "react-dom";
+import mammoth from "mammoth";
 
-interface AttachmentCardProps {
-  attachment: PendingAttachment;
-  onRemove: (localId: string) => void;
-}
-
-function getImageSrc(fileId: string | null) {
+function useCachedFileUrl(fileId: string | null) {
   const [src, setSrc] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(fileId));
 
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
 
     async function load() {
-      if (!fileId) return;
-
-      const cachedBlob = await getCachedImage(fileId);
-      if (cachedBlob && !cancelled) {
-        objectUrl = URL.createObjectURL(cachedBlob);
-        setSrc(objectUrl);
+      if (!fileId) {
+        setIsLoading(false);
         return;
       }
+      const blob = await getCachedFile(fileId);
+      if (!cancelled && blob) {
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      }
+      if (!cancelled) setIsLoading(false);
     }
-    load();
 
+    function handleCached(event: Event) {
+      if ((event as CustomEvent<string>).detail === fileId) {
+        setIsLoading(true);
+        void load();
+      }
+    }
+
+    void load();
+    window.addEventListener("zeyrix-file-cached", handleCached);
     return () => {
       cancelled = true;
+      window.removeEventListener("zeyrix-file-cached", handleCached);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [fileId]);
 
-  return src;
+  return { src, isLoading };
+}
+
+function isDocument(mimeType: string, filename: string) {
+  return mimeType === "text/plain" || mimeType.includes("word") ||
+    mimeType.includes("spreadsheet") || /\.(txt|docx?|xlsx?|csv)$/i.test(filename);
 }
 
 function ImageOverlay({
   src,
   alt,
-  layoutId,
   isOpen,
   onClose,
 }: {
   src: string;
-  alt?: string;
-  layoutId: string;
+  alt: string;
   isOpen: boolean;
   onClose: () => void;
 }) {
-  return (
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          key="overlay-backdrop"
           className="fixed inset-0 z-999 flex items-center justify-center bg-black/90"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
           onClick={onClose}
+          style={{ pointerEvents: isOpen ? "auto" : "none" }}
         >
-          <motion.div className="flex flex-col items-center gap-3 p-10">
+          <motion.div
+            className="flex max-h-[95vh] max-w-[95vw] flex-col items-center gap-4 p-4 sm:p-10"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.94, opacity: 0 }}
+            transition={{
+              duration: 0.16,
+              ease: [0.32, 0.72, 0, 1],
+            }}
+          >
             <motion.img
-              layoutId={layoutId}
               src={src}
               alt={alt}
-              className="max-w-[80vw] max-h-[80vh] rounded-xl"
-              transition={{
-                layout: {
-                  duration: 0.35,
-                  ease: [0.22, 1, 0.36, 1],
-                },
-              }}
-              onClick={(e) => e.stopPropagation()}
+              className="max-h-[82vh] max-w-[92vw] rounded-xl object-contain shadow-2xl"
+              initial={{ scale: 0.86, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30, mass: 0.7 }}
             />
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-white"
-            >
-              {alt}
-            </motion.p>
+            <p className="text-sm text-white/90">{alt}</p>
+            <div className="flex items-center gap-1 rounded-full border border-primary/40 bg-elevated/95 p-1 shadow-lg">
+              <button
+                type="button"
+                aria-label="Download image"
+                title="Download image"
+                className="rounded-full p-2.5 text-primary transition-colors hover:bg-primary/15 hover:text-primary-hover hover:cursor-pointer"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = src;
+                  link.download = alt;
+                  link.click();
+                }}
+              >
+                <DownloadIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Close image preview"
+                title="Close image preview"
+                className="rounded-full p-2.5 text-primary transition-colors hover:bg-primary/15 hover:text-primary-hover hover:cursor-pointer"
+                onClick={onClose}
+              >
+                <CloseIcon className="size-4" />
+              </button>
+            </div>
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
-export function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
-  const { file, localId, fileId, status, error } = attachment;
-
-  const isImage = file.type.startsWith("image/");
-  const [localSrc, setLocalSrc] = useState<string | null>(null);
+function DocumentViewer({
+  attachment,
+  blob,
+  onClose,
+}: {
+  attachment: Attachment;
+  blob: Blob;
+  onClose: () => void;
+}) {
+  const [content, setContent] = useState<ReactNode>("Loading...");
 
   useEffect(() => {
-    if (!isImage) {
-      setLocalSrc(null);
-      return;
+    let cancelled = false;
+
+    async function parse() {
+      try {
+        const name = attachment.filename.toLowerCase();
+
+        // TXT
+        if (attachment.mimeType === "text/plain" || name.endsWith(".txt")) {
+          const text = await blob.text();
+          if (!cancelled) {
+            setContent(
+              <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                {text}
+              </pre>
+            );
+          }
+          return;
+        }
+
+        // DOCX → mammoth
+        if (name.endsWith(".docx") || attachment.mimeType.includes("word")) {
+          const arrayBuffer = await blob.arrayBuffer();
+          const result = await mammoth.convertToHtml(
+            { arrayBuffer },
+            {
+              styleMap: [
+                "p[style-name='Heading 1'] => h1:fresh",
+                "p[style-name='Heading 2'] => h2:fresh",
+                "p[style-name='Heading 3'] => h3:fresh",
+                "r[style-name='Strong'] => strong",
+                "r[style-name='Emphasis'] => em",
+                "br[type='page'] => hr.docx-page-break",
+              ],
+            }
+          );
+
+          if (!cancelled) {
+            setContent(
+              <div
+                className="docx-mammoth"
+                dangerouslySetInnerHTML={{ __html: result.value }}
+              />
+            );
+          }
+          return;
+        }
+
+        // Excel
+        const workbook = XLSX.read(await blob.arrayBuffer(), { type: "array" });
+
+        if (!cancelled) {
+          setContent(
+            <div className="w-full space-y-8">
+              {workbook.SheetNames.map((sheet) => {
+                const rows = XLSX.utils.sheet_to_json<
+                  (string | number | boolean)[]
+                >(workbook.Sheets[sheet], { header: 1, defval: "" });
+
+                return (
+                  <section
+                    key={sheet}
+                    className="w-fit overflow-hidden rounded-xl border border-border bg-background/60 shadow-sm"
+                  >
+                    <h3 className="border-b border-border bg-elevated px-4 py-3 font-semibold text-foreground">
+                      {sheet}
+                    </h3>
+                    <div className="w-full overflow-x-auto">
+                      <table className="min-w-max border-collapse text-left text-sm">
+                        <tbody>
+                          {rows.map((row, rowIndex) => (
+                            <tr
+                              key={rowIndex}
+                              className="odd:bg-elevated/40 hover:bg-primary/10"
+                            >
+                              {row.map((cell, cellIndex) => (
+                                <td
+                                  key={cellIndex}
+                                  className="border-b border-border/70 px-3 py-2 text-foreground"
+                                >
+                                  {String(cell)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setContent(<p className="text-foreground-muted">Unable to preview this document.</p>);
+        }
+      }
     }
 
-    const url = URL.createObjectURL(file);
-    setLocalSrc(url);
+    void parse();
 
     return () => {
-      if (url) {URL.revokeObjectURL(url);}
+      cancelled = true;
     };
-  }, [file, isImage]);
+  }, [attachment, blob]);
 
-  const src = localSrc;
-  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  function download() {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = attachment.filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <div className="bg-elevated border border-border rounded-lg w-30 h-30 shrink-0 relative group">
-      {isImage && src ? (
-        <div className="relative overflow-hidden w-full h-full">
-          <motion.img
-            layoutId={`attachment-${localId}`}
-            src={src}
-            alt={file.name}
-            onClick={() => setIsOverlayOpen(true)}
-            className={`
-                        w-30 h-30
-                        object-cover
-                        rounded-lg
-                        hover:cursor-pointer
-                    `}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-          />
-          {status === "error" && (
-            <div className="flex flex-row text-caption items-center gap-1 w-full absolute bottom-1 bg-background">
-              <ErrorIcon className="text-error shrink-0 w-fit pl-1" />
-              <p className="text-foreground-secondary text-center truncate w-full">
-                {error === "400" ? "Unsupported file type" : "Something went wrong"}
-              </p>
-            </div>
-          )}
-
-          <ImageOverlay
-            src={src}
-            alt={file.name}
-            layoutId={`attachment-${localId}`}
-            isOpen={isOverlayOpen}
-            onClose={() => setIsOverlayOpen(false)}
-          />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2 px-3 py-2 justify-center items-center w-full h-full">
-          <FileIcon className="text-foreground size-4 shrink-0" />
-          <p className="font-sans text-body-sm text-foreground truncate w-full text-center">
-            {file.name}
-          </p>
-          <p className="font-sans text-caption text-foreground-muted truncate w-full text-center">
-            {((file.size) / (1024 * 1024)).toFixed(2)} MB
-          </p>
-
-          {status === "error" && (
-            <div className="flex flex-row text-caption items-center gap-1 w-full absolute bottom-1 bg-background">
-              <ErrorIcon className="text-error shrink-0 w-fit pl-1" />
-              <p className="text-foreground-secondary text-center truncate w-full">
-                {error === "400" ? "Unsupported file type" : "Something went wrong"}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      <button
-        className="
-          absolute -top-1.5 -right-1.5 p-1.5 bg-border rounded-full hover:cursor-pointer
-          border border-foreground-muted hover:border-foreground z-10
-          [@media(hover:hover)]:opacity-0 group-hover:opacity-100 transition-opacity
-        "
-        onClick={() => onRemove(localId)}
+    <div
+      className="fixed inset-0 z-999 flex items-center justify-center bg-black/70 p-1.5 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[97vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        <CloseIcon className="size-2 text-foreground" />
-      </button>
-
-      {status === "uploading" && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40 overflow-hidden">
-          <div className="h-full w-1/3 bg-primary animate-indeterminate" />
+        {/* Header */}
+        <div className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-elevated px-3 py-2.5 sm:px-6 sm:py-3">
+          <p className="min-w-0 truncate font-medium text-foreground">
+            {attachment.filename}
+          </p>
+          <div className="flex gap-1 sm:gap-2">
+            <button
+              aria-label="Download file"
+              title="Download file"
+              className="rounded-lg p-2 hover:bg-border"
+              onClick={download}
+            >
+              <DownloadIcon className="size-4" />
+            </button>
+            <button
+              aria-label="Close preview"
+              title="Close preview"
+              className="rounded-lg p-2 hover:bg-border"
+              onClick={onClose}
+            >
+              <CloseIcon className="size-4" />
+            </button>
+          </div>
         </div>
-      )}
 
-      {status === "error" && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40 overflow-hidden">
-          <div className="h-full w-full bg-error" />
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-auto bg-background p-3 text-foreground sm:p-6 md:p-8">
+          {content}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-export function MessageAttachment({
-  fileId,
-  filename,
-  size,
-  mimeType,
-}: Attachment) {
+interface AttachmentCardProps {
+  attachment: PendingAttachment;
+  onRemove: (localId: string) => void;
+}
+
+export function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
+  const { file, localId, status, error } = attachment;
+  const isImage = file.type.startsWith("image/");
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isImage) return;
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, isImage]);
+
+  return <div className="bg-elevated border border-border rounded-lg w-30 h-30 shrink-0 relative group">
+    {isImage && src ? <img src={src} alt={file.name} className="h-full w-full rounded-lg object-cover" /> :
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 py-2">
+        <FileIcon className="size-4 text-foreground" />
+        <p className="truncate text-center text-body-sm w-full">{file.name}</p>
+        <p className="text-caption text-foreground-muted">{(file.size / 1048576).toFixed(2)} MB</p>
+      </div>
+    }
+    <button
+      className="absolute -right-1.5 -top-1.5 z-10 rounded-full border border-foreground-muted bg-border p-1.5 hover:cursor-pointer hover:border-primary-outline"
+      onClick={() => onRemove(localId)}
+    >
+      <CloseIcon className="size-2" />
+    </button>
+    {status === "uploading" && <div className="absolute bottom-0 left-0 right-0 h-1 animate-pulse bg-primary" />}
+    {status === "error" && <div className="absolute bottom-1 flex w-full items-center gap-1 bg-background text-caption"><ErrorIcon className="size-3 text-error" />{error}</div>}
+  </div>;
+}
+
+export function MessageAttachment(attachment: Attachment) {
+  const { fileId, filename, size, mimeType } = attachment;
   const isImage = mimeType.startsWith("image/");
-  const src = getImageSrc(fileId);
-  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const { src, isLoading } = useCachedFileUrl(fileId);
+  const [imageOpen, setImageOpen] = useState(false);
+  const [document, setDocument] = useState<Blob | null>(null);
+
+  async function openDocument() {
+    const blob = await getCachedFile(fileId);
+    if (blob) setDocument(blob);
+  }
 
   return (
-    <div className="bg-elevated border border-border rounded-lg w-30 h-30 shrink-0 relative overflow-hidden">
-      {isImage && src ? (
+    <div className="relative h-30 w-30 shrink-0 overflow-hidden rounded-lg border border-border bg-elevated">
+      {isImage && isLoading ? (
+        <div className="h-full w-full animate-pulse bg-linear-to-r from-elevated via-border to-elevated" />
+      ) : isImage && src ? (
         <>
           <motion.img
             layoutId={`attachment-${fileId}`}
             src={src}
             alt={filename}
-            onClick={() => setIsOverlayOpen(true)}
-            className="
-                        w-30 h-30
-                        object-cover
-                        rounded-lg
-                        hover:cursor-pointer
-                    "
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            className="h-full w-full cursor-pointer rounded-lg object-cover"
+            onClick={() => setImageOpen(true)}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 28 }}
           />
-
           <ImageOverlay
             src={src}
             alt={filename}
-            layoutId={`attachment-${fileId}`}
-            isOpen={isOverlayOpen}
-            onClose={() => setIsOverlayOpen(false)}
+            isOpen={imageOpen}
+            onClose={() => setImageOpen(false)}
           />
         </>
       ) : (
-        <div className="flex flex-col gap-2 px-3 py-2 justify-center items-center w-full h-full">
-          <FileIcon className="text-foreground size-4" />
-          <p className="font-sans text-body-sm text-foreground truncate w-full text-center">
-            {filename}
+        <button
+          className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 py-2 hover:cursor-pointer"
+          onClick={() => {
+            if (isDocument(mimeType, filename)) void openDocument();
+          }}
+        >
+          <FileIcon className="size-4" />
+          <p className="w-full truncate text-center text-body-sm">{filename}</p>
+          <p className="text-caption text-foreground-muted">
+            {(size / 1048576).toFixed(2)} MB
           </p>
-          <p className="font-sans text-caption text-foreground-muted truncate w-full text-center">
-            {(Number(size) / (1024 * 1024)).toFixed(2)} MB
-          </p>
-        </div>
+        </button>
+      )}
+
+      {document && (
+        <DocumentViewer
+          attachment={attachment}
+          blob={document}
+          onClose={() => setDocument(null)}
+        />
       )}
     </div>
   );
