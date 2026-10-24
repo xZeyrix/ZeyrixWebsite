@@ -3,16 +3,22 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import SplashScreen from "./SplashScreen";
 import TurnstileWidget from "./TurnstileWidget";
+import TelegramLoginButton from "./TelegramLoginButton";
 import { useConnection } from "./ConnectionContext";
 
-type AuthState = "checking" | "needs_turnstile" | "authenticated" | "error";
+type AuthState =
+  | "checking"
+  | "needs_auth"
+  | "anonymous"
+  | "authenticated"
+  | "error";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
 const SPLASH_DELAY_MS = 150;
 const CACHE_KEY = "zeyrix_was_authenticated";
 
-const IGNORE_AUTH = true;
+const IGNORE_AUTH = false;
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { setState, setAccess } = useConnection();
@@ -66,7 +72,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
     setState("ready");
 
-    let data: { authenticated: boolean, access: boolean };
+    let data: { authenticated: boolean; access: boolean };
     try {
       data = await res.json();
     } catch {
@@ -81,7 +87,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       setAuthState("authenticated");
     } else {
       sessionStorage.removeItem(CACHE_KEY);
-      setAuthState("needs_turnstile");
+      setAuthState("needs_auth");
     }
 
     if (data.access) {
@@ -109,6 +115,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     checkStatus();
   }
 
+  function handleAuthSuccess() {
+    sessionStorage.setItem(CACHE_KEY, "true");
+    setAuthState("authenticated");
+  }
+
   if (authState === "checking") {
     return showSplash ? (
       <SplashScreen />
@@ -133,15 +144,33 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (authState === "needs_turnstile") {
+  if (authState === "needs_auth") {
     return (
       <SplashScreen>
-        <TurnstileWidget
-          onSuccess={() => {
-            sessionStorage.setItem(CACHE_KEY, "true");
-            setAuthState("authenticated");
-          }}
-        />
+        <div className="flex flex-col items-center gap-4">
+          <TelegramLoginButton onSuccess={handleAuthSuccess} />
+
+          <button
+            onClick={() => setAuthState("anonymous")}
+            className="text-body-sm text-foreground-muted underline hover:text-foreground"
+          >
+            Продолжить анонимно
+          </button>
+        </div>
+      </SplashScreen>
+    );
+  }
+
+  if (authState === "anonymous") {
+    return (
+      <SplashScreen>
+        <TurnstileWidget onSuccess={handleAuthSuccess} />
+        <button
+          onClick={() => setAuthState("needs_auth")}
+          className="mt-3 text-caption text-foreground-muted underline"
+        >
+          Назад
+        </button>
       </SplashScreen>
     );
   }
