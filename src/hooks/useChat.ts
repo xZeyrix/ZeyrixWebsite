@@ -240,7 +240,16 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
         updateMessage((message) => ({
           ...message,
-          steps: [...(message.steps ?? []), newStep],
+          streamingReasoning:
+            event.kind === "reasoning"
+              ? undefined
+              : message.streamingReasoning,
+          steps: [
+            ...(message.steps ?? []),
+            event.kind === "reasoning" && !event.label
+              ? { ...newStep, label: message.streamingReasoning ?? "" }
+              : newStep,
+          ],
         }));
         break;
       }
@@ -265,7 +274,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       case "text_delta":
         updateMessage((message) => ({
           ...message,
-          text: message.text + event.delta,
+          streamingReasoning: (message.streamingReasoning ?? "") + event.delta,
         }));
         break;
 
@@ -274,6 +283,8 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           ...message,
           status: event.status,
           text: event.content,
+          streamingReasoning: undefined,
+          steps: event.steps ?? message.steps,
           processingSeconds:
             (message.processingSeconds ?? 0) +
             event.processingSeconds,
@@ -292,6 +303,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           ...message,
           status: "error",
           text: event.message,
+          streamingReasoning: undefined,
         }));
         break;
     }

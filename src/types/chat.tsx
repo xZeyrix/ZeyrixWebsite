@@ -1,7 +1,7 @@
 import { SetStateAction } from "react";
 
 export type StepStatus = "in_progress" | "done" | "error" | "awaiting_approval" | "denied" | "expired" | "forbidden"
-export type StepKind = "tool_call" | "reasoning" | "file_transcribe"
+export type StepKind = "tool_call" | "reasoning"
 
 export type ToolDetails = {
   auditLogId?: string;
@@ -25,6 +25,7 @@ export interface AgentStep {
   toolDetails?: ToolDetails;
   failedGeneration?: FailedGeneration;
   isLast?: boolean;
+  isNextReasoning?: boolean;
 }
 
 export type StreamEvent =
@@ -64,6 +65,7 @@ export type Message = {
   createdAt: string;
   processingSeconds?: number;
   steps?: AgentStep[];
+  streamingReasoning?: string;
   notSent?: boolean;
   applyToolUse: (
     requestId: string,

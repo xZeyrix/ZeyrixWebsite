@@ -11,6 +11,7 @@ import { AgentStep, ToolDetails, StepKind, StepStatus, FailedGeneration } from "
 import { useStep } from "@/src/hooks/useStep";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 function formatFailedArguments(raw: string | undefined, t: (key: string) => string): string {
   if (!raw) return t("noParams");
@@ -166,13 +167,16 @@ function StepOverlay(
   );
 }
 
-export function Step({ kind, status, toolName, isLast, toolDetails, failedGeneration }: AgentStep) {
+export function Step({ kind, status, toolName, isLast, toolDetails, failedGeneration, label, isNextReasoning }: AgentStep) {
   const t = useTranslations("agentSteps");
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
-  let stepAction = `${t("unknown")}: `;
-  if (["reasoning", "tool_call", "file_transcribe"].includes(kind)) {
-    stepAction = `${t(kind)}: `;
+  if (kind === "reasoning") {
+    return (
+      <div className="pb-3 text-foreground">
+        <MarkdownMessage text={label} />
+      </div>
+    );
   }
 
   const colorClass =
@@ -211,7 +215,7 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
           )}
         </div>
 
-        {!isLast && <div className="w-0.5 flex-1 -mb-1 bg-foreground-muted" />}
+        {(!isLast && !isNextReasoning) && <div className="w-0.5 flex-1 -mb-1 bg-foreground-muted" />}
       </div>
       
       <div className="flex w-full items-center justify-between gap-2 min-w-0">

@@ -255,6 +255,7 @@ export function MessageBubble({
   steps,
   createdAt,
   processingSeconds,
+  streamingReasoning,
   id,
 }: Message) {
   const t = useTranslations("agentSteps");
@@ -264,6 +265,9 @@ export function MessageBubble({
   const [isStepsExtended, setIsStepsExtended] = useState(
     status === "pending",
   );
+  useEffect(() => {
+    setIsStepsExtended(status === "pending");
+  }, [status]);
   const approvalDetails = steps?.at(-1)?.approvalDetails;
   steps = steps ? steps : [];
 
@@ -293,9 +297,13 @@ export function MessageBubble({
               <div
                 className={`
                     flex flex-row items-center gap-2 w-fit text-foreground-muted
-                    ${steps.length > 0 && "hover:cursor-pointer hover:text-foreground-secondary"}
+                    ${(steps.length > 0 && status !== "pending") && "hover:cursor-pointer hover:text-foreground-secondary"}
                 `}
-                onClick={() => setIsStepsExtended((prev) => !prev)}
+                onClick={() => {
+                  if (status !== "pending") {
+                    setIsStepsExtended((prev) => !prev);
+                  }
+                }}
               >
                 {status === "pending" ? (
                   <p className="text-caption">
@@ -311,7 +319,7 @@ export function MessageBubble({
                   </p>
                 )}
                 <ArrowIcon
-                  className={`size-2 ${isStepsExtended && "rotate-90"} ${steps.length === 0 && "hidden"}`}
+                  className={`size-2 ${isStepsExtended && "rotate-90"} ${(steps.length === 0 || status === "pending") && "hidden"}`}
                 />
               </div>
 
@@ -331,8 +339,18 @@ export function MessageBubble({
                     key={step.id}
                     {...step}
                     isLast={index === steps.length - 1}
+                    isNextReasoning={steps.at(index+1)?.kind === "reasoning"}
                   />
                 ))}
+                {streamingReasoning && (
+                  <Step
+                    id="streaming-reasoning"
+                    kind="reasoning"
+                    status="in_progress"
+                    label={streamingReasoning}
+                    isLast
+                  />
+                )}
               </div>
             </div>
 
