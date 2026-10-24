@@ -1,11 +1,13 @@
-import InProgressIcon from "@/src/icons/in_progress.svg";
-import DoneIcon from "@/src/icons/done.svg";
-import CancelledIcon from "@/src/icons/cancelled.svg";
 import AwaitingIcon from "@/src/icons/time.svg";
 import ToolIcon from "@/src/icons/tool.svg";
 import ArrowIcon from "@/src/icons/arrowBasic.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import WarningIcon from "@/src/icons/warning.svg";
+import SearchIcon from "@/src/icons/search.svg";
+import DatabaseIcon from "@/src/icons/database.svg";
+import GenImageIcon from "@/src/icons/gen_image.svg";
+import GenDocxIcon from "@/src/icons/gen_docx.svg";
+import GenExcelIcon from "@/src/icons/gen_excel.svg";
 
 import { AgentStep, ToolDetails, StepKind, StepStatus, FailedGeneration } from "@/src/types/chat";
 import { useStep } from "@/src/hooks/useStep";
@@ -187,9 +189,17 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
         : "text-[#ff8686]";
 
   const localizedLabel = () => {
-    const tKey = `${kind}_${status}`;
+    const personalizedKey = `${toolName}_${status}`;
+    const fallbackKey = `${kind}_${status}`;
 
-    return t(tKey, {
+    if (t.has(personalizedKey)) {
+      return t(personalizedKey, {
+        rows: toolDetails?.rowsAffected ?? "",
+        table: toolDetails?.tableName ?? "",
+      });
+    }
+
+    return t(fallbackKey, {
       toolName: toolName ?? t("unknown_tool"),
     });
   };
@@ -204,14 +214,18 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
     >
       <div className="relative flex w-3 shrink-0 flex-col items-center self-stretch">
         <div className="relative z-10 mt-1 flex size-3 shrink-0 items-center justify-center bg-surface">
-          {status === "in_progress" ? (
-            <InProgressIcon className="size-3 animate-pulse" />
-          ) : status === "done" ? (
-            <DoneIcon className="size-3" />
-          ) : status === "awaiting_approval" ? (
-            <AwaitingIcon className="size-3" />
+          {(["web_search", "fetch_webpage"].includes(toolName || "")) ? (
+            <SearchIcon className="size-4" />
+          ) : (["get_table_structure", "select", "update", "delete", "insert"].includes(toolName || "")) ? (
+            <DatabaseIcon className="size-4" />
+          ) : toolName === "generate_image" ? (
+            <GenImageIcon className="size-4" />
+          ) : toolName === "generate_docx" ? (
+            <GenDocxIcon className="size-4" />
+          ) : toolName === "generate_excel" ? (
+            <GenExcelIcon className="size-4" />
           ) : (
-            <CancelledIcon className="size-3" />
+            <ToolIcon className="size-3" />
           )}
         </div>
 
@@ -224,7 +238,6 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
             status === "in_progress" ? "animate-pulse" : ""
           }`}
         >
-          {stepAction}
           {localizedLabel()}
         </p>
         
