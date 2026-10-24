@@ -25,7 +25,7 @@ function getDB() {
   return dbPromise;
 }
 
-export async function cacheImage(fileId: string, blob: Blob) {
+export async function cacheFile(fileId: string, blob: Blob) {
   const db = await getDB();
   await db.put("images", {
     fileId,
@@ -33,13 +33,20 @@ export async function cacheImage(fileId: string, blob: Blob) {
     mimeType: blob.type,
     cachedAt: Date.now(),
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("zeyrix-file-cached", { detail: fileId }));
+  }
 }
 
-export async function getCachedImage(fileId: string): Promise<Blob | null> {
+export const cacheImage = cacheFile;
+
+export async function getCachedFile(fileId: string): Promise<Blob | null> {
   const db = await getDB();
   const entry = await db.get("images", fileId);
   return entry?.blob ?? null;
 }
+
+export const getCachedImage = getCachedFile;
 
 export async function deleteCachedImage(fileId: string) {
   const db = await getDB();

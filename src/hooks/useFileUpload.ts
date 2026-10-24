@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Dispatch, SetStateAction } from "react";
 import type { PendingAttachment, PresignResponse } from "@/src/types/chat";
-import { cacheImage } from "../lib/ImageCache";
+import { cacheFile } from "../lib/FileCache";
 import { useChatDraft } from "./useChatDraftStore";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
 
@@ -60,9 +60,7 @@ export function useFileUpload(setModalState: Dispatch<SetStateAction<AccessInfoM
     });
     if (!uploadRes.ok) throw new Error(`${uploadRes.status}`);
 
-    if (isImage(file)) {
-      await cacheImage(fileId, file);
-    }
+    await cacheFile(fileId, file);
 
     // Step 3: confirm
     fetch("/api/files/confirm", {

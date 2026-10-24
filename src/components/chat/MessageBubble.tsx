@@ -336,20 +336,26 @@ export function MessageBubble({
               </div>
             </div>
 
-            {text && (
-              <>
-                <MarkdownMessage text={adaptedText} />
+            {text && <MarkdownMessage text={adaptedText} />}
 
-                <div className="flex flex-row items-center">
-                  <CopyButton content={adaptedText} />
-                  <button className="p-2 rounded-lg hover:bg-elevated hover:cursor-pointer">
-                    <LikeIcon className="text-foreground size-4" />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-elevated hover:cursor-pointer">
-                    <LikeIcon className="text-foreground size-4 scale-y-[-1]" />
-                  </button>
-                </div>
-              </>
+            {attachments && attachments.length > 0 && (
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-1 scrollbar-thin overflow-y-hidden">
+                {attachments.map((attachment) => (
+                  <MessageAttachment key={attachment.fileId} {...attachment} />
+                ))}
+              </div>
+            )}
+
+            {status === "completed" && (
+              <div className="flex flex-row items-center">
+                <CopyButton content={adaptedText} />
+                <button className="p-2 rounded-lg hover:bg-elevated hover:cursor-pointer">
+                  <LikeIcon className="text-foreground size-4" />
+                </button>
+                <button className="p-2 rounded-lg hover:bg-elevated hover:cursor-pointer">
+                  <LikeIcon className="text-foreground size-4 scale-y-[-1]" />
+                </button>
+              </div>
             )}
 
             {status === "approval_required" && (
