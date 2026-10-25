@@ -39,10 +39,10 @@ export function GetAccessModal({ onClose }: GetAccessModalProps) {
                 </div>
 
                 <div className="flex flex-col min-w-0 gap-2">
-                    <ContactButton Icon={WhatsappIcon} name="Whatsapp" note="Something" url={`https://wa.me/${whatsappPhone}?text=${encodedMessage}`} />
-                    <ContactButton Icon={TelegramIcon} name="Telegram" note="Something" url={`https://t.me/${telegramUsername}?text=${encodedMessage}`} />
-                    <ContactButton Icon={InstagramIcon} name="Instagram" note="Something" url="https://ig.me" />
-                    <ContactButton Icon={ContactIcon} name="Send a message" note="Something" url="https://wa.me" />
+                    <ContactButton Icon={WhatsappIcon} name="Whatsapp" note={t("whatsappNote")} url={whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodedMessage}` : null} />
+                    <ContactButton Icon={TelegramIcon} name="Telegram" note={t("telegramNote")} url={telegramUsername ? `https://t.me/${telegramUsername}?text=${encodedMessage}` : null} />
+                    <ContactButton Icon={InstagramIcon} name="Instagram" note={t("instagramNote")} url={null} />
+                    <ContactButton Icon={ContactIcon} name="Send a message" note={t("contactNote")} url={null} />
                 </div>
             </div>
         </div>

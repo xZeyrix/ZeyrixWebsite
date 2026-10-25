@@ -1,21 +1,24 @@
 import ArrowIcon from "@/src/icons/arrow.svg";
-import { navigate } from "next/dist/client/components/segment-cache/navigation";
+import { useRouter } from "next/navigation";
 
 type ContactButtonProps = {
     Icon: any;
     name: string;
     note: string;
-    url: string;
+    url: string | null;
 }
 
 export function ContactButton({ Icon, name, note, url }: ContactButtonProps) {
+    const router = useRouter();
+
     return (
         <div className="flex flex-col min-w-0">
-            <a 
-                href={url}
+            <button 
+                onClick={() => url ? router.push(url) : undefined}
+                disabled={!url}
                 className="
                     flex flex-row bg-elevated border border-border rounded-xl justify-between min-w-0 hover:cursor-pointer
-                    hover:bg-border hover:border-foreground-muted
+                    hover:bg-border hover:border-foreground-muted disabled:opacity-50 disabled:cursor-not-allowed
                 "
             >
                 <div className="flex flex-row pl-3 py-3 items-center gap-3 min-w-0 flex-1">
@@ -26,7 +29,7 @@ export function ContactButton({ Icon, name, note, url }: ContactButtonProps) {
                 <div className="border-l border-border flex justify-center items-center px-4 shrink-0">
                     <ArrowIcon className="size-5 rotate-90" />
                 </div>
-            </a>
+            </button>
 
             <p className="text-caption text-foreground-muted">{note}</p>
         </div>
