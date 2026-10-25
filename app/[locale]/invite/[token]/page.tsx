@@ -1,11 +1,12 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInvite } from "@/src/hooks/useInvite";
 import { AccessInvite } from "@/src/types/chat";
 import { useConnection } from "@/src/components/auth/ConnectionContext";
 import { useTranslations, useLocale, _Translator } from "next-intl";
+import ErrorIcon from "@/src/icons/warning.svg";
 
 // ---------- helpers ----------
 
@@ -113,6 +114,7 @@ export default function InviteActivation() {
   const params = useParams<{ token?: string | string[] }>();
   const token = Array.isArray(params.token) ? params.token[0] : params.token;
   const router = useRouter();
+  const pathname = usePathname();
 
   const { getInvite, activateInvite } = useInvite(token);
 
@@ -122,8 +124,9 @@ export default function InviteActivation() {
   const [error, setError] = useState<string | null>(null);
   const [, forceTick] = useState(0);
 
-  const { state } = useConnection();
+  const { state, auth, retryAuth } = useConnection();
   const t = useTranslations("invite");
+  const connectionErrorT = useTranslations("connectionError");
   const locale = useLocale();
 
   const mounted = useRef(true);
@@ -148,6 +151,12 @@ export default function InviteActivation() {
     const id = setInterval(() => forceTick((t) => t + 1), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (auth !== "needs_auth") return;
+    const next = encodeURIComponent(pathname);
+    router.replace(`/login?next=${next}`);
+  }, [auth, locale, pathname, router]);
 
   const handleActivate = useCallback(async () => {
     setError(null);
@@ -182,6 +191,39 @@ export default function InviteActivation() {
     else if (invite.status === "pending") {
       view = isPast(invite.activationExpiresAt) ? "expired" : "pending";
     }
+  }
+
+  if (auth === "error") {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background px-6">
+        <div className="flex max-w-md flex-col items-center gap-4 text-center">
+          <div className="flex size-14 items-center justify-center rounded-2xl border border-error/30 bg-error/10 text-2xl text-error">
+            <ErrorIcon className="size-5" />
+          </div>
+          <h1 className="text-h2 text-foreground">
+            {connectionErrorT("title")}
+          </h1>
+          <p className="text-body-sm text-foreground-muted">
+            {connectionErrorT("text")}
+          </p>
+          <button
+            type="button"
+            onClick={retryAuth}
+            className="rounded-xl bg-primary px-5 py-3 text-btn text-background transition hover:bg-primary-hover hover:cursor-pointer"
+          >
+            {connectionErrorT("button")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (auth !== "authenticated") {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background">
+        <div className="size-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+      </div>
+    );
   }
 
   return (

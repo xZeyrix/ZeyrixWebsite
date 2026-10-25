@@ -1,7 +1,8 @@
 "use client";
 
-import { ReactNode, useState } from "react";
-import { useParams } from "next/navigation";
+import { ReactNode, useEffect, useState } from "react";
+import { usePathname, useRouter, useParams } from "next/navigation";
+import { useLocale } from "next-intl";
 import { useChats } from "@/src/hooks/useChats";
 import { ChatHeader } from "@/src/components/chat/ChatHeader";
 import { SidebarDesktop } from "@/src/components/sidebar/SidebarDesktop";
@@ -12,15 +13,26 @@ import { useConnection } from "@/src/components/auth/ConnectionContext";
 import LockIcon from "@/src/icons/lock.svg";
 import { GetAccessModal } from "@/src/components/modals/getAccess";
 import { useTranslations } from "next-intl";
+import ErrorIcon from "@/src/icons/warning.svg";
 
 export default function ChatLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("accessDisabled");
+  const connectionErrorT = useTranslations("connectionError");
 
   const { chats, createChat, renameChat, deleteChat, loading } = useChats();
   const [isGetAccessModalOpen, setIsGetAccessModalOpen] = useState(false);
 
-  const { state, access } = useConnection();
+  const { state, access, auth, retryAuth } = useConnection();
+  const router = useRouter();
+  const pathname = usePathname();
+  const locale = useLocale();
   const isLoading = state !== "ready" || loading;
+
+  useEffect(() => {
+    if (auth !== "needs_auth") return;
+    const next = encodeURIComponent(pathname);
+    router.replace(`/login?next=${next}`);
+  }, [auth, locale, pathname, router]);
 
   const params = useParams<{ chatId?: string | string[] }>();
   const chatId = Array.isArray(params.chatId)
@@ -28,6 +40,39 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     : params.chatId;
 
   const isChatExist = chatId ? chats.some((chat) => chat.id === chatId) : true;
+
+  if (auth === "error") {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background px-6">
+        <div className="flex max-w-md flex-col items-center gap-4 text-center">
+          <div className="flex size-14 items-center justify-center rounded-2xl border border-error/30 bg-error/10 text-2xl text-error">
+            <ErrorIcon className="size-5" />
+          </div>
+          <h1 className="text-h2 text-foreground">
+            {connectionErrorT("title")}
+          </h1>
+          <p className="text-body-sm text-foreground-muted">
+            {connectionErrorT("text")}
+          </p>
+          <button
+            type="button"
+            onClick={retryAuth}
+            className="rounded-xl bg-primary px-5 py-3 text-btn text-background transition hover:bg-primary-hover hover:cursor-pointer"
+          >
+            {connectionErrorT("button")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (auth !== "authenticated") {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background">
+        <div className="size-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+      </div>
+    );
+  }
 
   return (
     <>

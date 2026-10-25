@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Script from "next/script";
 import TelegramIcon from "@/src/icons/telegram.svg";
+import { useTranslations } from "next-intl";
 
 declare global {
   interface Window {
@@ -32,7 +33,7 @@ interface TelegramLoginButtonProps {
   onError?: (message: string) => void;
 }
 
-const BOT_ID = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID!;
+const BOT_ID = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID;
 
 export default function TelegramLoginButton({
   onSuccess,
@@ -41,10 +42,11 @@ export default function TelegramLoginButton({
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations("login");
 
   async function handleAuth(user: TelegramUser | false) {
     if (!user) {
-      const msg = "Авторизация через Telegram отменена";
+      const msg = t("authCancelled", { "name": "Telegram" });
       setError(msg);
       onError?.(msg);
       setLoading(false);
@@ -62,12 +64,12 @@ export default function TelegramLoginButton({
       if (res.ok) {
         onSuccess();
       } else {
-        const msg = "Не удалось войти через Telegram";
+        const msg = t("authFailed", { "name": "Telegram" });
         setError(msg);
         onError?.(msg);
       }
     } catch {
-      const msg = "Ошибка сети";
+      const msg = t("networkError");
       setError(msg);
       onError?.(msg);
     } finally {
@@ -75,9 +77,9 @@ export default function TelegramLoginButton({
     }
   }
 
-  function startLogin() {
+  function startLogin(botId: string) {
     if (!window.Telegram?.Login) {
-      setError("Telegram SDK ещё не загрузился");
+      setError(t("authNotLoaded", { "name": "Telegram" }));
       return;
     }
 
@@ -85,7 +87,7 @@ export default function TelegramLoginButton({
     setError(null);
 
     window.Telegram.Login.auth(
-      { bot_id: BOT_ID, request_access: true },
+      { bot_id: botId, request_access: true },
       handleAuth,
     );
   }
@@ -99,15 +101,15 @@ export default function TelegramLoginButton({
       />
 
       <button
-        onClick={startLogin}
-        disabled={!scriptLoaded || loading}
-        className="flex items-center justify-center gap-2 rounded-lg bg-[#2AABEE] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#229ED9] disabled:opacity-50 hover:cursor-pointer"
+        onClick={() => BOT_ID && startLogin(BOT_ID)}
+        disabled={!scriptLoaded || loading || !BOT_ID}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-5 py-3 text-sm font-medium text-foreground transition hover:bg-[#229ED9] disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer"
       >
         <TelegramIcon className="size-5" />
-        {loading ? "Вход..." : "Войти через Telegram"}
+        {loading ? t("authInProgress") : t("authViaService", { "name": "Telegram" })}
       </button>
 
-      {error && <p className="text-caption text-red-400 mt-2">{error}</p>}
+      {error && <p className="text-caption text-error mt-2">{error}</p>}
     </>
   );
 }
