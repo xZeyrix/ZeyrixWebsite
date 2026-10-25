@@ -152,6 +152,30 @@
   background-image: url('/icons/logoMain.svg');
 }
 
+.legal-page {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 75% 16%, rgba(255, 214, 0, 0.045), transparent 24rem),
+    var(--color-background);
+}
+
+.legal-content {
+  padding-top: 3.5rem;
+}
+
+.legal-section-nav {
+  scrollbar-width: none;
+}
+
+.legal-section-nav::-webkit-scrollbar,
+.legal-section-nav *::-webkit-scrollbar {
+  display: none;
+}
+
+.legal-section-link {
+  flex: 0 0 auto;
+}
+
 @keyframes invite-pulse {
   0%,
   100% {
@@ -166,6 +190,76 @@
 
 .animate-invite-pulse {
   animation: invite-pulse 2s ease-in-out infinite;
+}
+
+.login-shell {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 214, 0, 0.09), transparent 28rem),
+    radial-gradient(circle at 90% 85%, rgba(42, 171, 238, 0.07), transparent 24rem),
+    var(--color-background);
+}
+
+.login-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse at center, black, transparent 72%);
+}
+
+.login-orb {
+  position: absolute;
+  width: 15rem;
+  height: 15rem;
+  border-radius: 999px;
+  filter: blur(60px);
+  opacity: 0.15;
+  pointer-events: none;
+  animation: login-float 9s ease-in-out infinite;
+}
+
+.login-orb-one {
+  top: 12%;
+  left: 8%;
+  background: var(--color-primary);
+}
+
+.login-orb-two {
+  right: 8%;
+  bottom: 10%;
+  background: #2aabee;
+  animation-delay: -4s;
+}
+
+.login-card {
+  animation: login-card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.6rem 0.8rem;
+  color: var(--color-foreground-muted);
+  font-size: 0.75rem;
+  animation: login-chip-in 0.6s ease-out both;
+}
+
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes login-chip-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes login-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(18px, -14px, 0) scale(1.08); }
 }
 
 .invite-check-draw {
@@ -183,6 +277,12 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-invite-pulse,
   .invite-check-draw {
+    animation: none !important;
+  }
+
+  .login-card,
+  .login-chip,
+  .login-orb {
     animation: none !important;
   }
 }
@@ -341,4 +441,27 @@
   .docx-mammoth td {
     padding: 0.45rem 0.6rem !important;
   }
+}
+
+.legal-scrollbar {
+  overflow-x: scroll;
+  scrollbar-width: auto; /* Firefox */
+  scrollbar-color: #888 transparent;
+}
+
+.legal-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+
+.legal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.legal-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 999px;
+}
+
+.legal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #666;
 }
