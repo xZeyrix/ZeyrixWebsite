@@ -9,7 +9,7 @@ interface Work {
     url: string,
 }
 
-function Work({ title, text, url }: Work) {
+function Work({ title, text, url }: { title: string, text: string, url: string }) {
     return (
         <div className="bg-surface border border-border p-6 rounded-2xl flex flex-col gap-6 items-center">
             <img src={url} alt="image" className="rounded-lg" />

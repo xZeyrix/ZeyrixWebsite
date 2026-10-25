@@ -1,8 +1,8 @@
 import { useTranslations } from "next-intl";
 import { PrimaryButton, SecondaryButton } from "../reusable/buttons";
-import { services } from "@/src/data/services";
+import { services, Service } from "@/src/data/services";
 
-function Service({ title, text, url }: Service) {
+function ServiceCard({ title, text, url }: { title: string, text: string, url: string }) {
     return (
         <div className="bg-surface border border-border p-6 rounded-2xl flex flex-col gap-6 items-center">
             <img src={url} alt="image" className="rounded-lg" />
@@ -33,7 +33,7 @@ export function MainServices() {
 
             <div className="flex flex-col gap-6">
                 {servicesArray.map((service) => (
-                    <Service key={service.preview.title} title={service.preview.title} text={service.preview.text} url={service.preview.url} />
+                    <ServiceCard key={service.preview.title} title={service.preview.title} text={service.preview.text} url={service.preview.url} />
                 ))}
             </div>
 

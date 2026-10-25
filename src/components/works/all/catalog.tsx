@@ -1,8 +1,7 @@
 "use client";
 
-import { randomUUID } from "crypto";
 import { PrimaryButton, SecondaryButton } from "@/src/components/reusable/buttons";
-import { works, Work, subCategory, filters } from "@/src/data/works";
+import { works, subCategory, filters } from "@/src/data/works";
 import { useState } from 'react';
 
 function Tag({ text }: { text: string }) {
@@ -13,28 +12,28 @@ function Tag({ text }: { text: string }) {
     );
 }
 
-function Work({ preview }: Work) {
+function WorkCard({ title, text, url, category, subCategory, tags }: { title: string, text: string, url: string, category: string, subCategory: string, tags: string[] }) {
     return (
         <div className="bg-surface border border-border p-6 rounded-2xl flex flex-col gap-6 items-center">
-            <img src={preview.url} alt="image" className="rounded-lg" />
+            <img src={url} alt="image" className="rounded-lg" />
             
             <div className="flex flex-col gap-3 items-center">
                 <div className="flex flex-row gap-10"> 
-                    <p className="text-overline text-primary">{preview.category}</p>
-                    <p className="text-overline text-foreground-muted">{preview.subCategory}</p>
+                    <p className="text-overline text-primary">{category}</p>
+                    <p className="text-overline text-foreground-muted">{subCategory}</p>
                 </div>
 
                 <div className="flex flex-col gap-1 items-center">
-                    <h4 className="text-h4 text-center">{preview.title}</h4>
-                    <p className="text-body-sm text-center">{preview.text}</p>
+                    <h4 className="text-h4 text-center">{title}</h4>
+                    <p className="text-body-sm text-center">{text}</p>
                 </div>
             </div>
 
             <div className="flex flex-col gap-3 w-full">
                 <div className="w-full flex flex-row justify-center">
                     <div className="flex flex-row overflow-x-auto gap-2 w-fit scrollbar-none">
-                        {preview.tags.map((text) => (
-                            <Tag key={text} text={text} />
+                        {tags.map((content) => (
+                            <Tag key={content} text={content} />
                         ))}
                     </div>
                 </div>
@@ -46,7 +45,7 @@ function Work({ preview }: Work) {
     )
 }
 
-function Filter({ filter, isCurrent, setFilter }: { filter: subCategory, isCurrent: boolean, setFilter: (name: string) => void }) {
+function Filter({ filter, isCurrent, setFilter }: { filter: subCategory, isCurrent: boolean, setFilter: (name: subCategory) => void }) {
     return (
         <button 
             className={`
@@ -75,7 +74,7 @@ export function WorksCatalog() {
             {worksToDisplay.length > 0 ? (
                 <div className="px-6 flex flex-col gap-6 pb-12">
                     {worksToDisplay.map((work) => (
-                        <Work key={work.preview.title} preview={work.preview} />
+                        <WorkCard key={work.preview.title} title={work.preview.title} text={work.preview.text} url={work.preview.url} category={work.preview.category} subCategory={work.preview.subCategory} tags={work.preview.tags} />
                     ))}
                 </div>
             ) : (
