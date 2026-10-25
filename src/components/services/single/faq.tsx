@@ -1,6 +1,6 @@
 import { Service } from "@/src/data/services";
 
-export function ServiceFAQ(service: Service) {
+export function ServiceFAQ() {
     return (
         <div>
             

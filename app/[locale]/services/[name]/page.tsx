@@ -13,8 +13,13 @@ import { ServiceCTA } from "@/src/components/services/single/cta";
 import { useParams } from 'next/navigation';
 import { ServiceNotFound } from './ServiceNotFound';
 import { services } from '../../../../src/data/services';
+import { notFound } from "next/navigation";
 
 export default function Service() {
+    if (process.env.IS_PRODUCTION === "true") {
+        notFound();
+    }
+
     const params = useParams<{ name?: string | string[] }>();
     const serviceName = Array.isArray(params.name)
         ? params.name[0]
@@ -28,7 +33,7 @@ export default function Service() {
             <div className="mt-14">
                 <HeaderMobile />
 
-                <ServiceHero service={currentService} />
+                <ServiceHero />
                 <ServiceOverview />
                 <ServiceProcess />
                 <ServiceTech />

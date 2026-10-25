@@ -6,8 +6,13 @@ import { HowItWorks } from "@/src/components/home/process";
 import { MainWorks } from "@/src/components/home/works";
 import { MainCTA } from "@/src/components/home/cta";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
+import { redirect } from "next/navigation";
 
 export default function Home() {
+  if (process.env.IS_PRODUCTION === "true") {
+    redirect("/chat");
+  }
+
   return (
     <>
       <HeaderMobile />

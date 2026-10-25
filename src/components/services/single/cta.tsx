@@ -1,6 +1,6 @@
 import { Service } from "@/src/data/services";
 
-export function ServiceCTA(service: Service) {
+export function ServiceCTA() {
     return (
         <div>
             

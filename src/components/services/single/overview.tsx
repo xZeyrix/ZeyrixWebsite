@@ -17,7 +17,7 @@ function OverviewCard({ Icon, title, text }: OverviewStep) {
     );
 }
 
-export function ServiceOverview(service: Service) {
+export function ServiceOverview() {
     const steps: OverviewStep[] = [
         { "Icon": CodeIcon, "title": "", "text": "" }
     ]

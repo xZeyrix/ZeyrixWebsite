@@ -1,7 +1,7 @@
 import { PrimaryButton, GhostButton } from "@/src/components/reusable/buttons";
 import { Service } from "@/src/data/services";
 
-export function ServiceHero(service: Service) {
+export function ServiceHero() {
     return (
         <div className="bg-background px-6 py-12 flex flex-col gap-12">
             <div className="flex flex-col gap-4">
