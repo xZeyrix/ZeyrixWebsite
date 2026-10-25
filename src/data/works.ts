@@ -30,7 +30,7 @@ type Review = {
     text: string,
 }
 
-type Work = {
+export type Work = {
     title: string,
     text: string,
     preview: WorkPreview,
@@ -41,7 +41,6 @@ type Work = {
     result: Result,
     tech: string[],
     review: Review,
-
 }
 
 export const works: Record<string, Work> = {
