@@ -7,6 +7,7 @@ import { ServicesTech } from "@/src/components/services/all/tech";
 import { ServicesFAQ } from "@/src/components/services/all/faq";
 import { ServicesCTA } from "@/src/components/services/all/cta";
 import { setRequestLocale } from "next-intl/server";
+import { notFound } from "next/navigation";
 
 export default async function Services({
     params,
@@ -15,6 +16,10 @@ export default async function Services({
 }) {
     const { locale } = await params;
     setRequestLocale(locale);
+
+    if (process.env.IS_PRODUCTION === "true") {
+        notFound();
+    }
 
     return (<div className="mt-14">
         <HeaderMobile />

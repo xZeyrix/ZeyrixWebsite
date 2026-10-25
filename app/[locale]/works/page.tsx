@@ -5,6 +5,7 @@ import { WorksHero } from "@/src/components/works/all/hero";
 import { WorksCatalog } from "@/src/components/works/all/catalog";
 import { WorksCTA } from "@/src/components/works/all/cta";
 import { setRequestLocale } from "next-intl/server";
+import { notFound } from "next/navigation";
 
 export default async function Services({
     params,
@@ -13,6 +14,10 @@ export default async function Services({
 }) {
     const { locale } = await params;
     setRequestLocale(locale);
+
+    if (process.env.IS_PRODUCTION === "true") {
+        notFound();
+    }
 
     return (<div className="mt-14">
         <HeaderMobile />
