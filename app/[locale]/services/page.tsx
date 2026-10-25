@@ -6,12 +6,15 @@ import { ServicesCatalog } from "@/src/components/services/all/catalog";
 import { ServicesTech } from "@/src/components/services/all/tech";
 import { ServicesFAQ } from "@/src/components/services/all/faq";
 import { ServicesCTA } from "@/src/components/services/all/cta";
-import { notFound } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
 
-export default function Services() {
-    if (process.env.IS_PRODUCTION === "true") {
-        notFound();
-    }
+export default async function Services({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}) {
+    const { locale } = await params;
+    setRequestLocale(locale);
 
     return (<div className="mt-14">
         <HeaderMobile />

@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
+  output: "export",
+  trailingSlash: true,
+  images: {
+    unoptimized: true,
+  },
   turbopack: {
     rules: {
       "*.svg": {
@@ -24,15 +29,6 @@ const nextConfig: NextConfig = {
         as: "*.js",
       },
     },
-  },
-  async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-
-    if (!backendUrl) {
-      throw new Error("Backend url missing");
-    }
-
-    return [{ source: "/api/:path*", destination: `${backendUrl}/:path*` }];
   },
   allowedDevOrigins: [
     // '*.ngrok-free.app',

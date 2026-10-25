@@ -1,0 +1,17 @@
+/ /locale-redirect/ 200
+/chat /locale-redirect/ 200
+/chat/* /locale-redirect/ 200
+/invite /locale-redirect/ 200
+/invite/* /locale-redirect/ 200
+/login /locale-redirect/ 200
+/services /locale-redirect/ 200
+/services/* /locale-redirect/ 200
+/works /locale-redirect/ 200
+/legal/privacy-policy /locale-redirect/ 200
+/legal/terms-of-use /locale-redirect/ 200
+/en/chat/* /en/chat/?chat=:splat 200
+/ru/chat/* /ru/chat/?chat=:splat 200
+/kk/chat/* /kk/chat/?chat=:splat 200
+/en/invite/* /en/invite/?token=:splat 200
+/ru/invite/* /ru/invite/?token=:splat 200
+/kk/invite/* /kk/invite/?token=:splat 200

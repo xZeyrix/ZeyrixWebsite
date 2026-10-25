@@ -4,7 +4,7 @@ import "./globals.css";
 import AuthGate from "@/src/components/auth/AuthGate";
 import { ConnectionProvider } from "@/src/components/auth/ConnectionContext";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { hasLocale } from "next-intl";
 import { routing } from "@/src/i18n/routing";
@@ -55,7 +55,7 @@ export default async function RootLayout({
 
   setRequestLocale(locale);
 
-  const messages = await getMessages();
+  const messages = (await import(`@/src/messages/${locale}.json`)).default;
 
   return (
     <html

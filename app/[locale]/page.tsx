@@ -6,15 +6,20 @@ import { HowItWorks } from "@/src/components/home/process";
 import { MainWorks } from "@/src/components/home/works";
 import { MainCTA } from "@/src/components/home/cta";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
-import { redirect } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
+import LocaleAutoRedirect from "@/src/components/i18n/LocaleAutoRedirect";
 
-export default function Home() {
-  if (process.env.IS_PRODUCTION === "true") {
-    redirect("/chat");
-  }
+export default async function Home({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
 
   return (
     <>
+      <LocaleAutoRedirect />
       <HeaderMobile />
 
       <MainHero />

@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useConnection } from "./ConnectionContext";
+import { apiFetch } from "@/src/lib/api";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { setState, setAccess, setAuth, authRetryKey } = useConnection();
@@ -11,7 +12,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
     async function checkStatus() {
       try {
-        const response = await fetch("/api/auth/status", {
+        const response = await apiFetch("/api/auth/status", {
           credentials: "include",
         });
 

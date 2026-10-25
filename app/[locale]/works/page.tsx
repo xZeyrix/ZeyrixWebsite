@@ -4,12 +4,15 @@ import { OpenAgentButton } from "@/src/components/reusable/buttons";
 import { WorksHero } from "@/src/components/works/all/hero";
 import { WorksCatalog } from "@/src/components/works/all/catalog";
 import { WorksCTA } from "@/src/components/works/all/cta";
-import { notFound } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
 
-export default function Services() {
-    if (process.env.IS_PRODUCTION === "true") {
-        notFound();
-    }
+export default async function Services({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}) {
+    const { locale } = await params;
+    setRequestLocale(locale);
 
     return (<div className="mt-14">
         <HeaderMobile />

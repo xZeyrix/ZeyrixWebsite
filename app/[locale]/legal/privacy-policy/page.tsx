@@ -1,13 +1,23 @@
-import { getTranslations } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
+import en from "@/src/messages/en.json";
+import ru from "@/src/messages/ru.json";
+import kk from "@/src/messages/kk.json";
 
 interface PrivacyPolicySection {
   title: string;
   points: string[];
 }
 
-export default async function PrivacyPolicyPage() {
-  const t = await getTranslations("privacyPolicy");
-  const sections = t.raw("sections") as Record<string, string[]>;
+export default async function PrivacyPolicyPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const messages = locale === "ru" ? ru : locale === "kk" ? kk : en;
+  const document = messages.privacyPolicy;
+  const sections = document.sections as Record<string, string[]>;
   const documentSections: PrivacyPolicySection[] = Object.entries(sections).map(
     ([title, points]) => ({ title, points }),
   );
@@ -16,9 +26,9 @@ export default async function PrivacyPolicyPage() {
     <article className="mx-auto w-full max-w-240 px-6 pb-24 pt-24 sm:px-10 lg:px-12">
       <header className="legal-hero mb-16 border-b border-border pb-10">
         <p className="mb-4 text-overline uppercase text-primary">/ legal</p>
-        <h1 className="max-w-3xl text-display text-foreground">{t("title")}</h1>
+        <h1 className="max-w-3xl text-display text-foreground">{document.title}</h1>
         <p className="mt-5 text-body-sm text-foreground-muted">
-          {t("lastUpdated")}
+          {document.lastUpdated}
         </p>
       </header>
 
