@@ -7,14 +7,14 @@ export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const {  state } = useConnection();
+  const { state, auth } = useConnection();
 
   useEffect(() => {
     async function loadChats() {
       setLoading(true);
       setError(null);
 
-      if (state !== "ready") {
+      if (state !== "ready" || auth !== "authenticated") {
         return;
       }
 
