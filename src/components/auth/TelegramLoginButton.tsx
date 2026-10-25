@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Script from "next/script";
+import TelegramIcon from "@/src/icons/telegram.svg";
 
 declare global {
   interface Window {
@@ -100,8 +101,9 @@ export default function TelegramLoginButton({
       <button
         onClick={startLogin}
         disabled={!scriptLoaded || loading}
-        className="flex items-center justify-center gap-2 rounded-lg bg-[#2AABEE] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#229ED9] disabled:opacity-50"
+        className="flex items-center justify-center gap-2 rounded-lg bg-[#2AABEE] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#229ED9] disabled:opacity-50 hover:cursor-pointer"
       >
+        <TelegramIcon className="size-5" />
         {loading ? "Вход..." : "Войти через Telegram"}
       </button>
 

@@ -152,7 +152,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
           <button
             onClick={() => setAuthState("anonymous")}
-            className="text-body-sm text-foreground-muted underline hover:text-foreground"
+            className="text-body-sm text-foreground-muted underline hover:text-foreground hover:cursor-pointer"
           >
             Продолжить анонимно
           </button>
