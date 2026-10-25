@@ -8,6 +8,7 @@ import { MainCTA } from "@/src/components/home/cta";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
 import { setRequestLocale } from "next-intl/server";
 import LocaleAutoRedirect from "@/src/components/i18n/LocaleAutoRedirect";
+import ProductionHomeRedirect from "@/src/components/i18n/ProductionHomeRedirect";
 
 export default async function Home({
   params,
@@ -16,6 +17,10 @@ export default async function Home({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+
+  if (process.env.IS_PRODUCTION === "true") {
+    return <ProductionHomeRedirect locale={locale} />;
+  }
 
   return (
     <>
