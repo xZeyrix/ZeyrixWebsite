@@ -108,11 +108,11 @@ function UserMessage({
         </p>
       </div>
 
-      {status === "error" && (
+      {status === "error" && notSent && (
         <div className="mt-1.5 flex flex-col items-end gap-2 text-caption">
           <div className="flex items-center gap-1 text-error">
             <ErrorIcon className="size-3.5 shrink-0" />
-            <p>{notSent ? t("notSent") : t("notTransmitted")}</p>
+            <p>{t("notSent")}</p>
           </div>
 
           {/* <button
