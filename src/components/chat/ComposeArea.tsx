@@ -11,7 +11,7 @@ import ArrowIcon from "@/src/icons/arrow.svg";
 
 import { useRef, useState, SetStateAction, Dispatch } from "react";
 import { useConnection } from "../auth/ConnectionContext";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useFileUpload } from "@/src/hooks/useFileUpload";
 import { AttachmentCard } from "./Attachment";
 import { mapAttachments, Attachment } from "@/src/types/chat";
@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useTranslations } from "next-intl";
 import { useChatDraft } from "@/src/hooks/useChatDraftStore";
 import { AccessInfoModalStatus, AccessInfoModal } from "../modals/accessInfo";
+import { notifyChatRouteChanged } from "@/src/hooks/useChatRoute";
 
 type ComposeAreaProps = {
   chatId?: string;
@@ -110,7 +111,6 @@ export function ComposeArea({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const router = useRouter();
 
   const handleFiles = (files: File[]) => {
       files.forEach(addAttachment);
@@ -151,7 +151,13 @@ export function ComposeArea({
         await sendMessage(message, attachmentsToSend, readyFileIds);
       } else {
         const newChatId = await createChat(message, setComposeError, setModalState);
-        router.replace(`/chat/${newChatId}`, { scroll: false });
+        const chatPath = pathname.slice(0, pathname.indexOf("/chat") + 5);
+        window.history.replaceState(
+          {},
+          "",
+          `${chatPath}?chat=${encodeURIComponent(newChatId)}`,
+        );
+        notifyChatRouteChanged();
         await sendMessage(message, attachmentsToSend, readyFileIds, newChatId);
       }
     } catch {

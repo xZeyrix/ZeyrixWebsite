@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import { apiFetch } from "@/src/lib/api";
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!;
 const MAX_ATTEMPTS = 3;
@@ -71,7 +72,7 @@ export default function TurnstileWidget({ onSuccess }: TurnstileWidgetProps) {
   async function handleToken(token: string) {
     let res: Response;
     try {
-      res = await fetch("/api/auth/create_account", {
+      res = await apiFetch("/api/auth/create_account", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

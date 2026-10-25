@@ -11,6 +11,7 @@ import {
 } from "../types/chat";
 import { useLocale } from "next-intl";
 import { useConnection } from "../components/auth/ConnectionContext";
+import { apiFetch } from "../lib/api";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
 import { cacheFile } from "../lib/FileCache";
 
@@ -104,7 +105,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       }
 
       try {
-        const res = await fetch(`/api/chats/${chatId}/get_messages`, {
+        const res = await apiFetch(`/api/chats/${chatId}/get_messages`, {
           credentials: "include",
         });
 
@@ -200,7 +201,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     await Promise.all(
       files.map(async (file) => {
         try {
-          const tokenResponse = await fetch(`/api/files/${file.accessToken}`, {
+          const tokenResponse = await apiFetch(`/api/files/${file.accessToken}`, {
             credentials: "include",
           });
           if (!tokenResponse.ok) {

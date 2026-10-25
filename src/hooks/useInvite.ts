@@ -1,12 +1,13 @@
 import { useCallback } from "react";
 import { AccessInvite } from "../types/chat";
 import { useConnection } from "../components/auth/ConnectionContext";
+import { apiFetch } from "../lib/api";
 
 export function useInvite(token?: string) {
     const { setAccess } = useConnection();
 
     const getInvite = useCallback(async (): Promise<AccessInvite> => {
-        const response = await fetch(`/api/invites/${token}`, {
+        const response = await apiFetch(`/api/invites/${token}`, {
             method: "GET",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
@@ -21,7 +22,7 @@ export function useInvite(token?: string) {
     }, [token])
 
     const activateInvite = useCallback(async () => {
-        const response = await fetch("/api/invites/activate", {
+        const response = await apiFetch("/api/invites/activate", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },

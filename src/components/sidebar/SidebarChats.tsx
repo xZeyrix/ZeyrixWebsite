@@ -2,12 +2,13 @@
 
 import DotsIcon from "@/src/icons/dots.svg";
 import { Chat } from "@/src/types/chat";
-import { useRouter, useParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import RenameIcon from "@/src/icons/rename.svg";
 import DeleteIcon from "@/src/icons/delete.svg";
 import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
+import { notifyChatRouteChanged, useChatRoute } from "@/src/hooks/useChatRoute";
 
 type GlobalProps = {
   renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
@@ -36,10 +37,8 @@ type AIChatProps = Chat & GlobalProps;
 function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
   const t = useTranslations("chat");
   const router = useRouter();
-  const params = useParams<{ chatId?: string | string[] }>();
-  const currentChatId = Array.isArray(params.chatId)
-    ? params.chatId[0]
-    : params.chatId;
+  const pathname = usePathname();
+  const currentChatId = useChatRoute(pathname);
   const isSelected = currentChatId === id;
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -136,7 +135,13 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
             return;
           }
           
-          router.push(`/chat/${id}`, { scroll: false });
+          const chatPath = pathname.slice(0, pathname.indexOf("/chat") + 5);
+          window.history.pushState(
+            {},
+            "",
+            `${chatPath}?chat=${encodeURIComponent(id)}`,
+          );
+          notifyChatRouteChanged();
           if (onClose) {onClose();}
         }}
       >

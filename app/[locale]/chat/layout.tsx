@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { usePathname, useRouter, useParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useChats } from "@/src/hooks/useChats";
 import { ChatHeader } from "@/src/components/chat/ChatHeader";
@@ -14,6 +14,7 @@ import LockIcon from "@/src/icons/lock.svg";
 import { GetAccessModal } from "@/src/components/modals/getAccess";
 import { useTranslations } from "next-intl";
 import ErrorIcon from "@/src/icons/warning.svg";
+import { useChatRoute } from "@/src/hooks/useChatRoute";
 
 export default function ChatLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("accessDisabled");
@@ -34,10 +35,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     router.replace(`/login?next=${next}`);
   }, [auth, locale, pathname, router]);
 
-  const params = useParams<{ chatId?: string | string[] }>();
-  const chatId = Array.isArray(params.chatId)
-    ? params.chatId[0]
-    : params.chatId;
+  const chatId = useChatRoute(pathname);
 
   const isChatExist = chatId ? chats.some((chat) => chat.id === chatId) : true;
 

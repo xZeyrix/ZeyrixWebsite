@@ -2,6 +2,7 @@ import { Chat, ApiChat, mapChat } from "../types/chat";
 import { useEffect, useState, useCallback, Dispatch, SetStateAction } from "react";
 import { useConnection } from "../components/auth/ConnectionContext";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
+import { apiFetch } from "../lib/api";
 
 export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -19,7 +20,7 @@ export function useChats() {
       }
 
       try {
-        const res = await fetch("/api/chats/get_all_chats", {
+        const res = await apiFetch("/api/chats/get_all_chats", {
           credentials: "include",
         });
 
@@ -47,7 +48,7 @@ export function useChats() {
       setError(null);
 
       try {
-        const res = await fetch("/api/chats/create", {
+        const res = await apiFetch("/api/chats/create", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -88,7 +89,7 @@ export function useChats() {
       setError(null);
 
       try {
-        const res = await fetch("/api/chats/rename", {
+        const res = await apiFetch("/api/chats/rename", {
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -114,7 +115,7 @@ export function useChats() {
     setError(null);
 
     try {
-      const res = await fetch("/api/chats/delete", {
+      const res = await apiFetch("/api/chats/delete", {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

@@ -5,6 +5,7 @@ import type { PendingAttachment, PresignResponse } from "@/src/types/chat";
 import { cacheFile } from "../lib/FileCache";
 import { useChatDraft } from "./useChatDraftStore";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
+import { apiFetch } from "../lib/api";
 
 export function useFileUpload(setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>, chatId?: string) {
   const { setAttachments, draft } = useChatDraft(chatId);
@@ -29,7 +30,7 @@ export function useFileUpload(setModalState: Dispatch<SetStateAction<AccessInfoM
 
   const uploadFile = useCallback(async (file: File): Promise<string> => {
     // Step 1: presign
-    const presignRes = await fetch("/api/files/presign", {
+    const presignRes = await apiFetch("/api/files/presign", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -63,7 +64,7 @@ export function useFileUpload(setModalState: Dispatch<SetStateAction<AccessInfoM
     await cacheFile(fileId, file);
 
     // Step 3: confirm
-    fetch("/api/files/confirm", {
+    apiFetch("/api/files/confirm", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -109,7 +110,7 @@ export function useFileUpload(setModalState: Dispatch<SetStateAction<AccessInfoM
     try {
       const fileId = await uploadFile(file);
 
-      const res = await fetch("/api/ai/transcribe", {
+      const res = await apiFetch("/api/ai/transcribe", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

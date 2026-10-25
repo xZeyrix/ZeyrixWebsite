@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Script from "next/script";
 import TelegramIcon from "@/src/icons/telegram.svg";
+import { apiFetch } from "@/src/lib/api";
 import { useTranslations } from "next-intl";
 
 declare global {
@@ -54,7 +55,7 @@ export default function TelegramLoginButton({
     }
 
     try {
-      const res = await fetch("/api/auth/telegram", {
+      const res = await apiFetch("/api/auth/telegram", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

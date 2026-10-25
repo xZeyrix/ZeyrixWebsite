@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInvite } from "@/src/hooks/useInvite";
 import { AccessInvite } from "@/src/types/chat";
@@ -111,10 +111,13 @@ function IconBlocked() {
 type ViewState = "loading" | "notFound" | "pending" | "expired" | "unavailable" | "activated";
 
 export default function InviteActivation() {
-  const params = useParams<{ token?: string | string[] }>();
-  const token = Array.isArray(params.token) ? params.token[0] : params.token;
   const router = useRouter();
   const pathname = usePathname();
+  const [queryToken, setQueryToken] = useState<string | null>(null);
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const inviteSegmentIndex = pathSegments.indexOf("invite");
+  const token = queryToken ??
+    (inviteSegmentIndex >= 0 ? pathSegments[inviteSegmentIndex + 1] : undefined);
 
   const { getInvite, activateInvite } = useInvite(token);
 
@@ -130,6 +133,10 @@ export default function InviteActivation() {
   const locale = useLocale();
 
   const mounted = useRef(true);
+  useEffect(() => {
+    setQueryToken(new URLSearchParams(window.location.search).get("token"));
+  }, [pathname]);
+
   useEffect(() => {
     mounted.current = true;
     return () => {

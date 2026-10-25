@@ -1,4 +1,5 @@
 import { useState, useCallback, Dispatch, SetStateAction } from "react";
+import { apiFetch } from "../lib/api";
 
 export function useStep() {
     const [error, setError] = useState<string | null>(null);
@@ -7,7 +8,7 @@ export function useStep() {
         setError(null);
 
         try {
-            const res = await fetch("/api/tools/undo", {
+            const res = await apiFetch("/api/tools/undo", {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
