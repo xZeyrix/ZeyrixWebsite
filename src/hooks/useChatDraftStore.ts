@@ -96,5 +96,6 @@ export function useChatDraft(chatId?: string) {
       draft,
       setMessage: (message: SetStateAction<string>) => setMessage(draftKey, message),
       setAttachments: (attachments: SetStateAction<PendingAttachment[]>) => setAttachments(draftKey, attachments),
+      clearDraft: () => useChatDraftStore.getState().clearDraft(draftKey),
     };
   }

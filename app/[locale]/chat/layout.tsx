@@ -20,7 +20,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("accessDisabled");
   const connectionErrorT = useTranslations("connectionError");
 
-  const { chats, createChat, renameChat, deleteChat, loading } = useChats();
+  const { chats, createChat, renameChat, deleteChat, loading, creating } = useChats();
   const [isGetAccessModalOpen, setIsGetAccessModalOpen] = useState(false);
 
   const { state, access, auth, retryAuth } = useConnection();
@@ -102,6 +102,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
               <SidebarDesktop>
                 <SidebarChats
                   chats={chats}
+                  loading={loading}
                   renameChat={renameChat}
                   deleteChat={deleteChat}
                 />
@@ -111,12 +112,13 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
             <div className="w-full h-full flex flex-col bg-background min-w-0">
               <ChatHeader
                 chats={chats}
+                loading={loading}
                 renameChat={renameChat}
                 deleteChat={deleteChat}
               />
 
               <div className="flex flex-1 min-h-0 flex-col">
-                <ChatClient chatId={chatId} createChat={createChat} openContactModal={() => setIsGetAccessModalOpen(true)} />
+                <ChatClient chatId={chatId} createChat={createChat} creatingChat={creating} openContactModal={() => setIsGetAccessModalOpen(true)} />
               </div>
             </div>
 

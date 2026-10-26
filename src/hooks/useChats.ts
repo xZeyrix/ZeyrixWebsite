@@ -8,6 +8,7 @@ export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const { state, auth } = useConnection();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function useChats() {
     }
 
     loadChats();
-  }, [state]);
+  }, [state, auth]);
 
   const createChat = useCallback(
     async (
@@ -46,6 +47,7 @@ export function useChats() {
       setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>,
     ): Promise<string> => {
       setError(null);
+      setCreating(true);
 
       try {
         const res = await apiFetch("/api/chats/create", {
@@ -79,6 +81,8 @@ export function useChats() {
 
         setError(error);
         throw err;
+      } finally {
+        setCreating(false);
       }
     },
     [],
@@ -134,5 +138,5 @@ export function useChats() {
     }
   }, []);
 
-  return { chats, createChat, renameChat, deleteChat, loading };
+  return { chats, createChat, renameChat, deleteChat, loading, creating };
 }
