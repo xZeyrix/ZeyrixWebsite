@@ -36,6 +36,7 @@ type ComposeAreaProps = {
     setComposeError: Dispatch<SetStateAction<"forbidden" | "chat-not-created" | null>>,
     setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>,
   ) => Promise<string>;
+  creatingChat: boolean;
   isNewChat: boolean;
   isToolRequestPending: boolean;
   failedToLoad: boolean;
@@ -51,6 +52,7 @@ export function ComposeArea({
   sendMessage,
   sending,
   createChat,
+  creatingChat,
   isNewChat,
   isToolRequestPending,
   failedToLoad,
@@ -63,7 +65,8 @@ export function ComposeArea({
   const t = useTranslations("composeArea");
 
   const { state, access } = useConnection();
-  const canInteract = state === "ready" && !failedToLoad && access === "granted";
+  const canInteract =
+    state === "ready" && !failedToLoad && access === "granted" && !creatingChat;
   const pathname = usePathname();
   const [composeError, setComposeError] = useState<"chat-not-created" | "forbidden" | null>(null);
 
@@ -99,13 +102,14 @@ export function ComposeArea({
     },
   });
 
-  const { setMessage, draft, setAttachments } = useChatDraft(chatId);
+  const { setMessage, draft, setAttachments, clearDraft } = useChatDraft(chatId);
   const message = draft.message;
 
   const canSend =
     message.trim().length > 0 &&
     canInteract &&
     !sending &&
+    !creatingChat &&
     !isUploading &&
     !isToolRequestPending;
 
@@ -141,13 +145,12 @@ export function ComposeArea({
   async function handleSend() {
     if (!canSend) return;
 
-    setMessage("");
-
     const attachmentsToSend = attachments.filter((att) => att.status === "done").map(mapAttachments);
-    setAttachments([]);
 
     try {
       if (chatId) {
+        setMessage("");
+        setAttachments([]);
         await sendMessage(message, attachmentsToSend, readyFileIds);
       } else {
         const newChatId = await createChat(message, setComposeError, setModalState);
@@ -158,6 +161,7 @@ export function ComposeArea({
           `${chatPath}?chat=${encodeURIComponent(newChatId)}`,
         );
         notifyChatRouteChanged();
+        clearDraft();
         await sendMessage(message, attachmentsToSend, readyFileIds, newChatId);
       }
     } catch {
@@ -364,7 +368,7 @@ export function ComposeArea({
                   <MicroIcon className={`${canInteract ? "text-foreground-secondary" : "text-foreground-muted/90"} size-5`} />
                 </button>
                 
-                {!sending ? (
+                {!sending && !creatingChat ? (
                   <button
                     disabled={!canSend}
                     className={`
@@ -375,6 +379,15 @@ export function ComposeArea({
                     onClick={handleSend}
                   >
                     <SendIcon className="size-3 text-primary-surface" />
+                  </button>
+                ) : creatingChat ? (
+                  <button
+                    type="button"
+                    disabled
+                    aria-label="Creating chat"
+                    className="size-8 rounded-lg flex items-center justify-center bg-primary/50"
+                  >
+                    <span className="size-4 animate-spin rounded-full border-2 border-primary-surface/40 border-t-primary-surface" />
                   </button>
                 ) : (
                   <button

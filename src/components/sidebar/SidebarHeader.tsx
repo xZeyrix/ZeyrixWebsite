@@ -2,8 +2,8 @@ import SidebarIcon from "@/src/icons/sidebar.svg";
 import SearchIcon from "@/src/icons/search.svg";
 import NewChatIcon from "@/src/icons/redact.svg";
 import { useSidebar } from "./SidebarContext";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { notifyChatRouteChanged } from "@/src/hooks/useChatRoute";
 
 type SidebarProps = {
   onClose?: () => void;
@@ -11,8 +11,12 @@ type SidebarProps = {
 
 export function SidebarHeader({ onClose }: SidebarProps) {
   const { expanded, toggle } = useSidebar();
-  const router = useRouter();
   const t = useTranslations("sidebarHeader");
+  const openNewChat = () => {
+    window.history.pushState({}, "", window.location.pathname);
+    notifyChatRouteChanged();
+    onClose?.();
+  };
 
   return (
     <div
@@ -30,7 +34,7 @@ export function SidebarHeader({ onClose }: SidebarProps) {
         >
           <h4
             className="text-primary font-sans text-h4 whitespace-nowrap hover:cursor-pointer"
-            onClick={() => router.push("/chat")}
+            onClick={openNewChat}
           >
             Zeyrix
           </h4>
@@ -64,10 +68,7 @@ export function SidebarHeader({ onClose }: SidebarProps) {
             hover:cursor-pointer hover:bg-elevated
           `}
           onClick={() => {
-            router.push("/chat");
-            if (onClose) {
-              onClose();
-            }
+            openNewChat();
           }}
         >
           <NewChatIcon className="text-foreground-secondary size-4 shrink-0" />

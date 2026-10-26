@@ -11,6 +11,7 @@ export default function ChatClient({
   chatId,
   createChat,
   openContactModal,
+  creatingChat,
 }: {
   chatId?: string;
   createChat: (
@@ -18,6 +19,7 @@ export default function ChatClient({
     setComposeError: Dispatch<SetStateAction<"forbidden" | "chat-not-created" | null>>,
     setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>,
   ) => Promise<string>;
+  creatingChat: boolean;
   openContactModal: () => void;
 }) {
   const { setAccess } = useConnection();
@@ -69,6 +71,7 @@ export default function ChatClient({
             sendMessage={sendMessage}
             sending={sending}
             createChat={createChat}
+            creatingChat={creatingChat}
             isNewChat
             isToolRequestPending={isToolRequestPending}
             failedToLoad={false}
@@ -112,6 +115,7 @@ export default function ChatClient({
         sendMessage={sendMessage}
         sending={sending}
         createChat={createChat}
+        creatingChat={creatingChat}
         isNewChat={chatId ? false : true}
         isToolRequestPending={isToolRequestPending}
         failedToLoad={Boolean(messages.length === 0 && error)}

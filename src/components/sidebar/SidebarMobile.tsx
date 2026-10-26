@@ -8,6 +8,7 @@ type SidebarProps = {
   onClose: () => void;
   onExited: () => void;
   chats: Chat[];
+  loading?: boolean;
   renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
   deleteChat: (chatId: string) => Promise<undefined>;
 };
@@ -17,6 +18,7 @@ export function SidebarMobile({
   onClose,
   onExited,
   chats,
+  loading,
   renameChat,
   deleteChat,
 }: SidebarProps) {
@@ -46,6 +48,7 @@ export function SidebarMobile({
         <div className="flex-1 flex flex-col min-h-0">
           <SidebarChats
             chats={chats}
+            loading={loading}
             renameChat={renameChat}
             deleteChat={deleteChat}
             onClose={onClose}

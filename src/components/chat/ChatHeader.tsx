@@ -9,11 +9,12 @@ import { useRouter } from "next/navigation";
 
 type ChatHeaderProps = {
   chats: Chat[];
+  loading?: boolean;
   renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
   deleteChat: (chatId: string) => Promise<undefined>;
 };
 
-export function ChatHeader({ chats, renameChat, deleteChat }: ChatHeaderProps) {
+export function ChatHeader({ chats, loading, renameChat, deleteChat }: ChatHeaderProps) {
   const [isSideBarOpen, setIsSideBarOpen] = useState(false);
   const [isSidebarMounted, setIsSidebarMounted] = useState(false);
   const router = useRouter();
@@ -48,6 +49,7 @@ export function ChatHeader({ chats, renameChat, deleteChat }: ChatHeaderProps) {
           onClose={closeSidebar}
           onExited={handleSidebarExited}
           chats={chats}
+          loading={loading}
           renameChat={renameChat}
           deleteChat={deleteChat}
         />
