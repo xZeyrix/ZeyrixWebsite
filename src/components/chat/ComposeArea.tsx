@@ -9,7 +9,7 @@ import ErrorIcon from "@/src/icons/warning.svg";
 import StopIcon from "@/src/icons/stop.svg";
 import ArrowIcon from "@/src/icons/arrow.svg";
 
-import { useRef, useState, SetStateAction, Dispatch } from "react";
+import { useRef, useState, SetStateAction, Dispatch, useEffect } from "react";
 import { useConnection } from "../auth/ConnectionContext";
 import { usePathname } from "next/navigation";
 import { useFileUpload } from "@/src/hooks/useFileUpload";
@@ -115,7 +115,6 @@ export function ComposeArea({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-
   const handleFiles = (files: File[]) => {
       files.forEach(addAttachment);
   };
@@ -137,9 +136,18 @@ export function ComposeArea({
     textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
   }
 
+  useEffect(() => {
+    resizeTextarea();
+  }, [message]);
+
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setMessage(e.target.value);
     resizeTextarea();
+  }
+
+  function isCoarsePointer() {
+    if (typeof window == "undefined") return false;
+    return window.matchMedia("(pointer: coarse)").matches;
   }
 
   async function handleSend() {
@@ -170,7 +178,9 @@ export function ComposeArea({
 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.focus();
+      if (!isCoarsePointer()) {
+        textareaRef.current.focus();
+      }
     }
   }
 
