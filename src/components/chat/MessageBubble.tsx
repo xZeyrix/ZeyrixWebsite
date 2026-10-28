@@ -108,12 +108,14 @@ function UserMessage({
         </p>
       </div>
 
-      {status === "error" && notSent && (
+      {status === "error" && (
         <div className="mt-1.5 flex flex-col items-end gap-2 text-caption">
-          <div className="flex items-center gap-1 text-error">
-            <ErrorIcon className="size-3.5 shrink-0" />
-            <p>{t("notSent")}</p>
-          </div>
+          {notSent && (
+            <div className="flex items-center gap-1 text-error">
+              <ErrorIcon className="size-3.5 shrink-0" />
+              <p>{t("notSent")}</p>
+            </div>
+          )}
 
           {/* <button
               className="
@@ -127,7 +129,7 @@ function UserMessage({
               }}
             >
               <RedactIcon className="size-3.5" />
-              <span>Редактировать</span>
+              <span>Redact</span>
           </button> */}
 
           {retrySendMessage && (
