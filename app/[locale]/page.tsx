@@ -18,7 +18,7 @@ export default async function Home({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  if (process.env.IS_PRODUCTION === "true") {
+  if (process.env.NEXT_PUBLIC_IS_PRODUCTION === "true") {
     return <ProductionHomeRedirect locale={locale} />;
   }
 

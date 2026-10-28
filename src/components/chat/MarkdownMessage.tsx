@@ -80,7 +80,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ text }: Props) {
           style={{
             WebkitOverflowScrolling: "touch",
             overscrollBehaviorX: "contain",
-            touchAction: "pan-x",
+            touchAction: "pan-x pan-y",
           }}
         >
           <table className="w-full min-w-120 border-collapse text-body-sm">
@@ -136,7 +136,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ text }: Props) {
               style={{
                 WebkitOverflowScrolling: "touch",
                 overscrollBehaviorX: "contain",
-                touchAction: "pan-x",
+                touchAction: "pan-x pan-y",
               }}
             >
               <pre className="m-0 p-4 text-body-sm font-mono text-foreground whitespace-pre">

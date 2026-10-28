@@ -138,6 +138,20 @@ export function ChatArea({
     }
   }, [messages, showMessages, chatId]);
 
+  useEffect(() => {
+    if (!showMessages || !shouldAutoScrollRef.current) return;
+    const bottom = bottomRef.current;
+    if (!bottom) return;
+
+    const ro = new ResizeObserver(() => {
+      if (shouldAutoScrollRef.current) {
+        bottom.scrollIntoView({ behavior: "smooth", block: "end" })
+      }
+    });
+    ro.observe(bottom);
+    return () => ro.disconnect();
+  }, [showMessages, messages.length]);
+
   if (showLoading) {
     return (
       <div className="w-full h-full overflow-y-auto px-6 py-6">
