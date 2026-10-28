@@ -221,7 +221,7 @@ function formatDuration(ms: number, t: _Translator<Record<string, any>>): string
     return `${seconds}${t("s")}`;
   }
 
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.floor(seconds / 60);
   const restSeconds = seconds % 60;
 
   return `${minutes}${t("m")} ${restSeconds}${t("s")}`;
