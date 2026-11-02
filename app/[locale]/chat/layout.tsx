@@ -118,7 +118,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
               />
 
               <div className="flex flex-1 min-h-0 flex-col">
-                <ChatClient chatId={chatId} createChat={createChat} creatingChat={creating} openContactModal={() => setIsGetAccessModalOpen(true)} />
+                <ChatClient key={chatId ?? "new"} chatId={chatId} createChat={createChat} creatingChat={creating} openContactModal={() => setIsGetAccessModalOpen(true)} />
               </div>
             </div>
 
