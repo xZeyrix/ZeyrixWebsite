@@ -9,7 +9,7 @@ type ServicePreview = {
     tags: string[],
 }
 
-type Tech = {
+export type Tech = {
     Icon: any,
     name: string,
 }
@@ -25,6 +25,11 @@ export type Service = {
     preview: ServicePreview,
     tech: Tech[],
     questions: Question[],
+}
+
+export type ServiceProps = {
+    id?: string,
+    service: Service,
 }
 
 export const services: Record<string, Service> = {
@@ -45,27 +50,27 @@ export const services: Record<string, Service> = {
         questions: [
             {
                 "title": "How much does a project cost?",
-                "text": "Q: How much does a project cost?\nA: Every project is different. Small MVPs typically start around $5–10K, while larger systems vary based on scope. We always provide a clear estimate after a free discovery call.",
+                "text": "Every project is different. Small MVPs typically start around $5–10K, while larger systems vary based on scope. We always provide a clear estimate after a free discovery call.",
             },
             {
                 "title": "How long does development take?",
-                "text": "Q: How long does development take?\nA: A typical MVP takes 4–8 weeks. Larger projects are scoped in phases — we'll give you a realistic timeline upfront, not a guess.",
+                "text": "A typical MVP takes 4–8 weeks. Larger projects are scoped in phases — we'll give you a realistic timeline upfront, not a guess.",
             },
             {
                 "title": "How do we get started?",
-                "text": "Q: How do we get started?\nA: Fill out the contact form or email us directly. We'll schedule a 30-minute discovery call to understand your needs before anything else.",
+                "text": "Fill out the contact form or email us directly. We'll schedule a 30-minute discovery call to understand your needs before anything else.",
             },
             {
                 "title": "Do you work with early-stage startups?",
-                "text": "Q: Do you work with early-stage startups?\nA: Yes. We enjoy working with founders who have a clear problem to solve, even if the product isn't fully defined yet.",
+                "text": "Yes. We enjoy working with founders who have a clear problem to solve, even if the product isn't fully defined yet.",
             },
             {
                 "title": "Can you take over an existing project?",
-                "text": "Q: Can you take over an existing project?\nA: We can. We'll start with a code audit to understand what's there, then propose the best path forward.",
+                "text": "We can. We'll start with a code audit to understand what's there, then propose the best path forward.",
             },
             {
                 "title": "Do you provide support after launch?",
-                "text": "Q: Do you provide support after launch?\nA: Yes — we offer post-launch maintenance packages and are happy to stay on as a long-term technical partner.",
+                "text": "Yes — we offer post-launch maintenance packages and are happy to stay on as a long-term technical partner.",
             },
         ],
     },

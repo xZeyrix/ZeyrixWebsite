@@ -30,7 +30,7 @@ export function useChats() {
         setChats(data.map(mapChat));
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Не удалось загрузить чаты",
+          err instanceof Error ? err.message : "Failed to load chats",
         );
       } finally {
         setLoading(false);
@@ -106,7 +106,7 @@ export function useChats() {
         if (!res.ok) throw new Error(`Backend вернул ${res.status}`);
       } catch (err) {
         const error =
-          err instanceof Error ? err.message : "Не удалось переименовать чат";
+          err instanceof Error ? err.message : "Failed to rename the chat";
 
         setError(error);
         throw err;
@@ -118,21 +118,26 @@ export function useChats() {
   const deleteChat = useCallback(async (chatId: string): Promise<undefined> => {
     setError(null);
 
+    let snapshot: Chat[] = [];
+    setChats((prev) => {
+      snapshot = prev;
+      return prev.filter((chat) => chat.id !== chatId);
+    });
+
     try {
       const res = await apiFetch("/api/chats/delete", {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: chatId }),
+        body: JSON.stringify({ chatId }),
       });
 
-      if (!res.ok) throw new Error(`Backend вернул ${res.status}`);
-
-      setChats((prev) => prev.filter((chat) => chat.id != chatId));
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
     } catch (err) {
-      const error =
-        err instanceof Error ? err.message : "Не удалось переименовать чат";
+      setChats(snapshot);
 
+      const error =
+        err instanceof Error ? err.message : "Failed to delete the chat";
       setError(error);
       throw err;
     }

@@ -26,13 +26,15 @@ export default function ServiceClient() {
   return (
     <div className="mt-14">
       <HeaderMobile />
-      <ServiceHero />
-      <ServiceOverview />
-      <ServiceProcess />
-      <ServiceTech />
-      <ServiceRelatedCases />
-      <ServiceFAQ />
-      <ServiceCTA />
+
+      <ServiceHero service={currentService} />
+      <ServiceOverview service={currentService} />
+      <ServiceProcess service={currentService} />
+      <ServiceTech service={currentService} />
+      <ServiceRelatedCases service={currentService} />
+      <ServiceFAQ service={currentService} />
+      <ServiceCTA service={currentService} />
+
       <OpenAgentButton />
       <FooterMobile />
     </div>

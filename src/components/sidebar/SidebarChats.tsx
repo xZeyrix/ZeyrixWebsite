@@ -2,7 +2,7 @@
 
 import DotsIcon from "@/src/icons/dots.svg";
 import { Chat } from "@/src/types/chat";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import RenameIcon from "@/src/icons/rename.svg";
 import DeleteIcon from "@/src/icons/delete.svg";
 import { useState, useRef, useEffect } from "react";
@@ -37,7 +37,6 @@ type AIChatProps = Chat & GlobalProps;
 
 function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
   const t = useTranslations("chat");
-  const router = useRouter();
   const pathname = usePathname();
   const currentChatId = useChatRoute(pathname);
   const isSelected = currentChatId === id;
@@ -257,13 +256,13 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
                   setIsDeleting(false);
 
                   if (isSelected) {
-                    router.replace("/chat", {
-                      scroll: false,
-                    });
-                    window.requestAnimationFrame(() => {
-                      void deleteChat(id);
-                    });
-                    return;
+                    const chatIdx = pathname.indexOf("/chat");
+                    const chatPath =
+                      chatIdx >= 0
+                        ? pathname.slice(0, chatIdx + 5)
+                        : "/chat";
+                    window.history.replaceState({}, "", chatPath);
+                    notifyChatRouteChanged();
                   }
 
                   void deleteChat(id);

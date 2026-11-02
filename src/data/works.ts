@@ -43,6 +43,11 @@ export type Work = {
     review: Review,
 }
 
+export type WorkProps = {
+    id?: string,
+    work: Work,
+}
+
 export const works: Record<string, Work> = {
     "Custom-Software-Development": {
         title: "Custom Software Development",

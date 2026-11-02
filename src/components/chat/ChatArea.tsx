@@ -152,6 +152,28 @@ export function ChatArea({
     return () => ro.disconnect();
   }, [showMessages, messages.length]);
 
+  const emptyTitleRef = useRef<string | null>(null);
+  if (emptyTitleRef.current === null) {
+    const titles = [
+      t("title1"),
+      t("title2"),
+      t("title3"),
+      t("title4"),
+      t("title5"),
+      t("title6"),
+    ];
+    emptyTitleRef.current = titles[Math.floor(Math.random() * titles.length)]!;
+  }
+
+  if (showLoading && compactEmptyState) {
+    return (
+      <div
+        className="w-full min-h-[clamp(3rem,8vw,4.5rem)]"
+        aria-hidden
+      />
+    );
+  }
+
   if (showLoading) {
     return (
       <div className="w-full h-full overflow-y-auto px-6 py-6">
@@ -176,20 +198,10 @@ export function ChatArea({
   }
 
   if (showEmptyState) {
-    const titles = [
-      t("title1"),
-      t("title2"),
-      t("title3"),
-      t("title4"),
-      t("title5"),
-      t("title6"),
-    ];
-    const randomItem = titles[Math.floor(Math.random() * titles.length)];
-
     return (
       <h1 className="font-display-ru text-display text-foreground-secondary text-[clamp(2rem,5vw,3rem)] text-center px-6 max-w-[95vw]">
         <MainLogo className="inline-block text-[clamp(2rem,5vw,3rem)] shrink-0 text-primary mr-3 align-middle" />
-        {randomItem}
+        {emptyTitleRef.current}
       </h1>
     );
   }

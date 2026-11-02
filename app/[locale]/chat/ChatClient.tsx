@@ -29,7 +29,6 @@ export default function ChatClient({
   const [AccessInfoModalState, setAccessInfoModalState] = useState<AccessInfoModalStatus | null>(null);
 
   const { messages, loading, error, sending, sendMessage, applyToolUse, retrySendMessage, stopGeneration, setShouldMessagesLoad } = useChat(setAccessInfoModalState, chatId);
-  const isEmptyRootChat = !chatId && messages.length === 0;
 
   const isToolRequestPending = messages.some(
     (message) =>
@@ -42,29 +41,37 @@ export default function ChatClient({
       ),
   );
 
-  if (isEmptyRootChat) {
+  const isRootChat = !chatId;
+  if (isRootChat) {
     return (
       <div className="flex flex-1 min-h-0 flex-col items-center mt-[10dvh] py-8 md:mt-[20dvh]">
-        {AccessInfoModalState && <AccessInfoModal status={AccessInfoModalState} onClose={() => {
-          setAccess("disabled");
-          setAccessInfoModalState(null);
-        }}/>}
+        {AccessInfoModalState && (
+          <AccessInfoModal
+            status={AccessInfoModalState}
+            onClose={() => {
+              setAccess("disabled");
+              setAccessInfoModalState(null);
+            }}
+          />
+        )}
 
         <div className="w-full max-w-190 flex flex-col items-center gap-[clamp(2rem,5vw,3rem)]">
-          <ChatArea
-            chatId={chatId}
-            messages={messages}
-            loading={loading}
-            error={error}
-            compactEmptyState
-            applyToolUse={applyToolUse}
-            retrySendMessage={retrySendMessage}
-            closeToBottom={closeToBottom}
-            setCloseToBottom={setCloseToBottom}
-            shouldScroll={shouldScroll}
-            setShouldScroll={setShouldScroll}
-            reloadMessages={() => setShouldMessagesLoad(true)}
-          />
+          <div className="min-h-[clamp(3rem,8vw,4.5rem)] w-full flex items-center justify-center">
+            <ChatArea
+              chatId={chatId}
+              messages={messages}
+              loading={loading}
+              error={error}
+              compactEmptyState
+              applyToolUse={applyToolUse}
+              retrySendMessage={retrySendMessage}
+              closeToBottom={closeToBottom}
+              setCloseToBottom={setCloseToBottom}
+              shouldScroll={shouldScroll}
+              setShouldScroll={setShouldScroll}
+              reloadMessages={() => setShouldMessagesLoad(true)}
+            />
+          </div>
 
           <ComposeArea
             chatId={chatId}
