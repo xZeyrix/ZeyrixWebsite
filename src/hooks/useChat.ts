@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Dispatch, SetStateAction } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, Dispatch, SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import {
   Message,
@@ -16,6 +16,7 @@ import { AccessInfoModalStatus } from "../components/modals/accessInfo";
 import { cacheFile } from "../lib/FileCache";
 
 const optimisticMessagesByChatId = new Map<string, Message[]>();
+const CONNECT_TIMEOUT_MS = 30_000;
 
 function getOptimisticMessages(chatId?: string) {
   if (!chatId) return [];
@@ -31,6 +32,58 @@ function clearOptimisticMessages(chatId?: string) {
   if (!chatId) return;
 
   optimisticMessagesByChatId.delete(chatId);
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
+const CONNECT_TIMEOUT_REASON = "connect-timeout";
+
+function isConnectTimeoutError(err: unknown): boolean {
+  if (!isAbortError(err)) return false;
+  const reason =
+    err instanceof DOMException
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : "";
+  return reason === CONNECT_TIMEOUT_REASON || reason.includes("connect-timeout");
+}
+
+function parseApiError(err: unknown): {
+  code?: string;
+  message: string;
+  detail?: AccessInfoModalStatus;
+} {
+  if (!(err instanceof Error)) {
+    return { message: "Unknown error" };
+  }
+
+  if (isConnectTimeoutError(err)) {
+    return {
+      code: "NETWORK_ERROR",
+      message: "Connection timed out. Check your network and try again.",
+    };
+  }
+
+  try {
+    const data = JSON.parse(err.message) as {
+      code?: string;
+      message?: string;
+      detail?: AccessInfoModalStatus;
+    };
+    return {
+      code: data.code,
+      message: data.message ?? err.message,
+      detail: data.detail,
+    };
+  } catch {
+    return { code: "NETWORK_ERROR", message: err.message };
+  }
 }
 
 function generatedFileToAttachment(file: GeneratedFile): Attachment {
@@ -81,28 +134,39 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
   const { state } = useConnection();
 
+  useLayoutEffect(() => {
+    const previousChatId = previousChatIdRef.current;
+    if (previousChatId === chatId) return;
+
+    previousChatIdRef.current = chatId;
+    setError(null);
+
+    if (!chatId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    setMessages(getOptimisticMessages(chatId));
+    setLoading(true);
+  }, [chatId]);
+
   useEffect(() => {
     let cancelled = false;
-    const previousChatId = previousChatIdRef.current;
-    previousChatIdRef.current = chatId;
 
     if (state !== "ready") {
       return;
     }
 
     async function loadMessages() {
-      setLoading(true);
-      setError(null);
-
-      if (previousChatId !== undefined && previousChatId !== chatId) {
-        setMessages(getOptimisticMessages(chatId));
-      }
-
       if (!chatId) {
         setMessages([]);
         setLoading(false);
         return;
       }
+
+      setLoading(true);
+      setError(null);
 
       try {
         const res = await apiFetch(`/api/chats/${chatId}/get_messages`, {
@@ -147,53 +211,122 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     onEvent: (event: StreamEvent) => void,
     signal: AbortSignal,
   ) {
-    const response = await fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-    
-    if (!response.ok || !response.body) {
-      const error = await response.json();
-      throw new Error(JSON.stringify(error));
+    const fetchController = new AbortController();
+    let connectTimedOut = false;
+
+    const onParentAbort = () => {
+      fetchController.abort(signal.reason);
+    };
+    if (signal.aborted) {
+      onParentAbort();
+    } else {
+      signal.addEventListener("abort", onParentAbort);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    const connectTimer = setTimeout(() => {
+      connectTimedOut = true;
+      fetchController.abort(
+        new DOMException(CONNECT_TIMEOUT_REASON, "AbortError"),
+      );
+    }, CONNECT_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: fetchController.signal,
+      });
+      clearTimeout(connectTimer);
+    } catch (err) {
+      clearTimeout(connectTimer);
+      signal.removeEventListener("abort", onParentAbort);
+
+      if (connectTimedOut || isConnectTimeoutError(err)) {
+        throw new Error(
+          JSON.stringify({
+            code: "NETWORK_ERROR",
+            message: "Connection timed out. Check your network and try again.",
+          }),
+        );
+      }
+      if (isAbortError(err)) throw err;
+      throw new Error(
+        JSON.stringify({
+          code: "NETWORK_ERROR",
+          message:
+            err instanceof Error ? err.message : "Failed to reach the server",
+        }),
+      );
+    }
 
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
+      if (!response.ok || !response.body) {
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = {
+            code: "HTTP_ERROR",
+            message: `Request failed with status ${response.status}`,
+            status: response.status,
+          };
         }
+        throw new Error(
+          typeof payload === "string" ? payload : JSON.stringify(payload),
+        );
+      }
 
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith("data:")) {
-            continue;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
           }
 
-          const data = trimmed.slice(5).trim();
-          if (!data || data === "[DONE]") {
-            continue;
-          }
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
 
-          const event: StreamEvent = JSON.parse(data);
-          onEvent(event);
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data:")) {
+              continue;
+            }
+
+            const data = trimmed.slice(5).trim();
+            if (!data || data === "[DONE]") {
+              continue;
+            }
+
+            const event: StreamEvent = JSON.parse(data);
+            onEvent(event);
+          }
         }
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        throw new Error(
+          JSON.stringify({
+            code: "STREAM_ERROR",
+            message:
+              err instanceof Error
+                ? err.message
+                : "Connection lost while streaming",
+          }),
+        );
+      } finally {
+        reader.releaseLock();
       }
     } finally {
-      reader.releaseLock();
+      signal.removeEventListener("abort", onParentAbort);
     }
   }
 
@@ -319,8 +452,8 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     ) => {
       const targetChatId = newChatId ?? chatId;
 
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
+      const userAbort = new AbortController();
+      abortControllerRef.current = userAbort;
 
       const optimisticUserMsg: Message = {
         id: crypto.randomUUID(),
@@ -358,17 +491,17 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       setError(null);
 
       try {
-        const updateLastAssistantMessage = (updater: (message: Message) => Message) => {
+        const updateLastAssistantMessage = (
+          updater: (message: Message) => Message,
+        ) => {
           flushSync(() => {
             setMessages((prev) => {
               const index = prev.findLastIndex((m) => m.role === "assistant");
               if (index === -1) return prev;
 
-              const next = prev.map((message, i) =>
+              return prev.map((message, i) =>
                 i === index ? updater(message) : message,
               );
-
-              return next;
             });
           });
         };
@@ -384,10 +517,10 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
               timezone: timezone,
             },
             (event) => handleStreamEvent(event, updateLastAssistantMessage),
-            controller.signal,
+            userAbort.signal,
           );
         } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") {
+          if (isAbortError(error) && userAbort.signal.aborted) {
             setMessages((prev) =>
               prev.map((message, index) => {
                 if (
@@ -398,37 +531,31 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
                     status: "cancelled",
                   };
                 }
-
                 return message;
               }),
             );
-
             return;
           }
 
-          if (error instanceof Error) {
-            const data = JSON.parse(error.message)
-            
-            if (data.code === "INVITE_REQUIRED") {
-              setModalState(data.detail);
-            }
+          const apiError = parseApiError(error);
+
+          if (apiError.code === "INVITE_REQUIRED") {
+            setModalState(apiError.detail ?? null);
           }
 
           setMessages((prev) => {
             const messages = [...prev];
 
             const lastAgentIndex = messages.findLastIndex(
-              (message) => message.role === "assistant"
+              (message) => message.role === "assistant",
             );
-
             if (lastAgentIndex !== -1) {
               messages.splice(lastAgentIndex, 1);
             }
 
             const lastUserIndex = messages.findLastIndex(
-              (message) => message.role === "user"
+              (message) => message.role === "user",
             );
-
             if (lastUserIndex !== -1) {
               messages[lastUserIndex] = {
                 ...messages[lastUserIndex],
@@ -440,22 +567,20 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
             return messages;
           });
-
-          throw error;
         }
       } finally {
         if (targetChatId) {
           clearOptimisticMessages(targetChatId);
         }
-        
-        if (abortControllerRef.current === controller) {
+
+        if (abortControllerRef.current === userAbort) {
           abortControllerRef.current = null;
         }
 
         setSending(false);
       }
     },
-    [chatId],
+    [chatId, locale, timezone, setModalState],
   );
 
   async function retrySendMessage(id: string, prompt: string, attachments: Attachment[], deleteFromLocal: boolean = true) {
@@ -474,12 +599,13 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     }
   }
 
-  const applyToolUse = useCallback(async (requestId: string, action: "confirm" | "reject") => {
+  const applyToolUse = useCallback(
+    async (requestId: string, action: "confirm" | "reject") => {
       setSending(true);
       setError(null);
 
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
+      const userAbort = new AbortController();
+      abortControllerRef.current = userAbort;
 
       try {
         const updateApproveRequiredMessage = (
@@ -504,22 +630,21 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         updateApproveRequiredMessage((message) => ({
           ...message,
           status: "pending",
-        }))
+        }));
 
         await streamAI(
           `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/ai/apply_tool`,
-          { 
+          {
             requestId: requestId,
             action: action,
             locale: locale,
             timezone: timezone,
           },
           (event) => handleStreamEvent(event, updateApproveRequiredMessage),
-          controller.signal,
+          userAbort.signal,
         );
-        
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (isAbortError(err) && userAbort.signal.aborted) {
           setMessages((prev) =>
             prev.map((message, index) => {
               if (
@@ -530,60 +655,51 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
                   status: "cancelled",
                 };
               }
-
               return message;
             }),
           );
-
           return;
         }
 
-        if (err instanceof Error) {
-          const data = JSON.parse(err.message)
-          
-          if (data.code === "INVITE_REQUIRED") {
-            setModalState(data.detail);
-          }
+        const apiError = parseApiError(err);
+
+        if (apiError.code === "INVITE_REQUIRED") {
+          setModalState(apiError.detail ?? null);
         }
 
-        const error =
-          err instanceof Error
-            ? err
-            : new Error(
-                `Failed to handle the request.\nTry again in a moment.\nIf this problem will repeat, please, inform us.`,
-              );
+        const fallbackText =
+          apiError.code === "NETWORK_ERROR" || apiError.code === "STREAM_ERROR"
+            ? apiError.message
+            : apiError.message ||
+              `Failed to handle the request.\nTry again in a moment.\nIf this problem will repeat, please, inform us.`;
 
         setMessages((prev) => {
           const index = prev.findLastIndex(
             (message) => message.role === "assistant",
           );
-
-          if (index === -1) {
-            return prev;
-          }
+          if (index === -1) return prev;
 
           return prev.map((message, i) =>
             i === index
               ? {
                   ...message,
                   status: "error",
-                  text: error.message,
+                  text: fallbackText,
                 }
               : message,
           );
         });
 
-        setError(error.message);
-        throw error;
+        setError(fallbackText);
       } finally {
-        if (abortControllerRef.current === controller) {
+        if (abortControllerRef.current === userAbort) {
           abortControllerRef.current = null;
         }
 
         setSending(false);
       }
     },
-    [locale, timezone],
+    [locale, timezone, setModalState],
   );
 
   const stopGeneration = useCallback(() => {
