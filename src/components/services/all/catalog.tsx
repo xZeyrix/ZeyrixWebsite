@@ -18,14 +18,14 @@ function Service({ service, id }: ServiceProps) {
 
     return (
         <div className="bg-surface border border-border p-6 rounded-2xl flex flex-col gap-6 items-center">
-            <img src={url} alt="image" className="rounded-lg" />
+            <img src={preview.url} alt="image" className="rounded-lg" />
             
             <div className="flex flex-col gap-3 items-center">
                 <p className="text-overline text-primary-outline">01</p>
 
                 <div className="flex flex-col gap-1 items-center">
-                    <h4 className="text-h4 text-center">{title}</h4>
-                    <p className="text-body-sm text-center">{text}</p>
+                    <h4 className="text-h4 text-center">{preview.title}</h4>
+                    <p className="text-body-sm text-center">{preview.text}</p>
                 </div>
             </div>
 

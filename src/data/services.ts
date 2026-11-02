@@ -9,7 +9,7 @@ type ServicePreview = {
     tags: string[],
 }
 
-type Tech = {
+export type Tech = {
     Icon: any,
     name: string,
 }

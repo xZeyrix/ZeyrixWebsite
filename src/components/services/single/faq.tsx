@@ -1,10 +1,16 @@
 "use client";
 
-import { ServiceProps, Question } from "@/src/data/services";
+import { ServiceProps } from "@/src/data/services";
 import PlusIcon from "@/src/icons/plus.svg";
 import { useState } from "react";
 
-function Question({ id, title, text }: Question) {
+type QuestionProps = {
+    id: number;
+    title: string;
+    text: string;
+}
+
+function Question({ id, title, text }: QuestionProps) {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
