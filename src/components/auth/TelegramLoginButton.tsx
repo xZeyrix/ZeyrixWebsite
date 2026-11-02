@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Script from "next/script";
 import TelegramIcon from "@/src/icons/telegram.svg";
 import { apiFetch } from "@/src/lib/api";
@@ -15,6 +15,7 @@ declare global {
           callback: (data: TelegramUser | false) => void,
         ) => void;
       };
+      WebApp?: unknown;
     };
   }
 }
@@ -36,6 +37,36 @@ interface TelegramLoginButtonProps {
 
 const BOT_ID = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID;
 
+function isTelegramInAppBrowser() {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return Boolean(window.Telegram?.WebApp) || /Telegram/i.test(ua);
+}
+
+function readTelegramAuthFromHash(): TelegramUser | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash?.replace(/^#/, "");
+  if (!hash) return null;
+
+  const params = new URLSearchParams(hash);
+  const raw = params.get("tgAuthResult");
+  if (!raw) return null;
+
+  try {
+    const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(b64);
+    return JSON.parse(json) as TelegramUser;
+  } catch {
+    return null;
+  }
+}
+
+function clearTelegramAuthHash() {
+  if (typeof window === "undefined") return;
+  const { pathname, search } = window.location;
+  window.history.replaceState(null, "", `${pathname}${search}`);
+}
+
 export default function TelegramLoginButton({
   onSuccess,
   onError,
@@ -47,7 +78,7 @@ export default function TelegramLoginButton({
 
   async function handleAuth(user: TelegramUser | false) {
     if (!user) {
-      const msg = t("authCancelled", { "name": "Telegram" });
+      const msg = t("authCancelled", { name: "Telegram" });
       setError(msg);
       onError?.(msg);
       setLoading(false);
@@ -65,7 +96,7 @@ export default function TelegramLoginButton({
       if (res.ok) {
         onSuccess();
       } else {
-        const msg = t("authFailed", { "name": "Telegram" });
+        const msg = t("authFailed", { name: "Telegram" });
         setError(msg);
         onError?.(msg);
       }
@@ -78,14 +109,43 @@ export default function TelegramLoginButton({
     }
   }
 
+  useEffect(() => {
+    const user = readTelegramAuthFromHash();
+    if (!user) return;
+
+    clearTelegramAuthHash();
+    setLoading(true);
+    setError(null);
+    void handleAuth(user);
+  }, []);
+
+  function startLoginViaRedirect(botId: string) {
+    const origin = window.location.origin;
+    const returnTo = window.location.href.split("#")[0];
+
+    const url = new URL("https://oauth.telegram.org/auth");
+    url.searchParams.set("bot_id", botId);
+    url.searchParams.set("origin", origin);
+    url.searchParams.set("request_access", "write");
+    url.searchParams.set("return_to", returnTo);
+
+    window.location.assign(url.toString());
+  }
+
   function startLogin(botId: string) {
-    if (!window.Telegram?.Login) {
-      setError(t("authNotLoaded", { "name": "Telegram" }));
+    setLoading(true);
+    setError(null);
+
+    if (isTelegramInAppBrowser()) {
+      startLoginViaRedirect(botId);
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    if (!window.Telegram?.Login) {
+      setError(t("authNotLoaded", { name: "Telegram" }));
+      setLoading(false);
+      return;
+    }
 
     window.Telegram.Login.auth(
       { bot_id: botId, request_access: true },
@@ -103,11 +163,17 @@ export default function TelegramLoginButton({
 
       <button
         onClick={() => BOT_ID && startLogin(BOT_ID)}
-        disabled={!scriptLoaded || loading || !BOT_ID}
+        disabled={
+          loading ||
+          !BOT_ID ||
+          (!isTelegramInAppBrowser() && !scriptLoaded)
+        }
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-5 py-3 text-sm font-medium text-foreground transition hover:bg-[#229ED9] disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer"
       >
         <TelegramIcon className="size-5" />
-        {loading ? t("authInProgress") : t("authViaService", { "name": "Telegram" })}
+        {loading
+          ? t("authInProgress")
+          : t("authViaService", { name: "Telegram" })}
       </button>
 
       {error && <p className="text-caption text-error mt-2">{error}</p>}
