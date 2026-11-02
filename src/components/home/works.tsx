@@ -1,27 +1,25 @@
+"use client";
+
 import { useTranslations } from "next-intl"
 import { PrimaryButton, SecondaryButton } from "../reusable/buttons"
-import { works } from "@/src/data/works";
+import { works, WorkProps } from "@/src/data/works";
+import { useRouter } from 'next/navigation';
 
-interface Work {
-    id: number,
-    title: string,
-    text: string,
-    url: string,
-}
+function Work({ work, id }: WorkProps) {
+    const router = useRouter();
 
-function Work({ title, text, url }: { title: string, text: string, url: string }) {
     return (
         <div className="bg-surface border border-border p-6 rounded-2xl flex flex-col gap-6 items-center">
-            <img src={url} alt="image" className="rounded-lg" />
+            <img src={work.preview.url} alt="image" className="rounded-lg" />
             
             <div className="flex flex-col gap-1 items-center">
-                <h4 className="text-h4 text-center">{title}</h4>
-                <p className="text-body-sm text-center">{text}</p>
+                <h4 className="text-h4 text-center">{work.preview.title}</h4>
+                <p className="text-body-sm text-center">{work.preview.text}</p>
             </div>
 
             <div className="flex flex-col gap-3 w-full">
-                <PrimaryButton text="Primary" />
-                <SecondaryButton text="Secondary" />
+                <PrimaryButton text="Learn more →" onClick={() => router.push(`/works/${id}`)} />
+                <SecondaryButton text="Ask AI" />
             </div>
         </div>
     )
@@ -29,7 +27,7 @@ function Work({ title, text, url }: { title: string, text: string, url: string }
 
 export function MainWorks() {
     const t = useTranslations("home");
-    const worksArray = Object.values(works);
+    const router = useRouter();
 
     return (
         <div className="bg-background px-6 py-12 flex flex-col gap-10 items-center">
@@ -39,12 +37,12 @@ export function MainWorks() {
             </div>
 
             <div className="flex flex-col gap-6">
-                {worksArray.map((work) => (
-                    <Work key={work.preview.title} title={work.preview.title} text={work.preview.title} url={work.preview.url} />
+                {Object.entries(works).map(([id, work]) => (
+                    <Work key={id} id={id} work={work} />
                 ))}
             </div>
 
-            <PrimaryButton text={t("worksButton")} mode="fit" />
+            <PrimaryButton text={t("worksButton")} mode="fit" onClick={() => router.push("/works")} />
         </div>
     )
 }
