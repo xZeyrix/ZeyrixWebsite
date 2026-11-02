@@ -162,6 +162,7 @@ export function ComposeArea({
         await sendMessage(message, attachmentsToSend, readyFileIds);
       } else {
         const newChatId = await createChat(message, setComposeError, setModalState);
+        clearDraft();
         const chatPath = pathname.slice(0, pathname.indexOf("/chat") + 5);
         window.history.replaceState(
           {},
@@ -169,7 +170,6 @@ export function ComposeArea({
           `${chatPath}?chat=${encodeURIComponent(newChatId)}`,
         );
         notifyChatRouteChanged();
-        clearDraft();
         await sendMessage(message, attachmentsToSend, readyFileIds, newChatId);
       }
     } catch {
