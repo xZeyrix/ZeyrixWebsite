@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import { notifyChatRouteChanged, useChatRoute } from "@/src/hooks/useChatRoute";
+import { useStreamingChatIds } from "@/src/hooks/chatStreamStore";
 
 type GlobalProps = {
   renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
@@ -40,6 +41,8 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
   const pathname = usePathname();
   const currentChatId = useChatRoute(pathname);
   const isSelected = currentChatId === id;
+  const streamingChatIds = useStreamingChatIds();
+  const isGenerating = streamingChatIds.has(id);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -156,8 +159,18 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
             className="text-body-sm text-foreground-secondary w-full border-none outline-none rounded-lg py-[3.5px]"
           />
         ) : (
-          <p className="truncate text-body-sm text-foreground-secondary">
-            {title}
+          <p className="truncate text-body-sm text-foreground-secondary flex items-center gap-2 min-w-0">
+            {isGenerating && !isSelected && (
+              <span
+                className="relative flex size-2 shrink-0"
+                title="Generating"
+                aria-label="Generating"
+              >
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+              </span>
+            )}
+            <span className="truncate">{title}</span>
           </p>
         )}
 
