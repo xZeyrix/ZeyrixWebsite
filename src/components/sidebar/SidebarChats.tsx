@@ -18,7 +18,7 @@ type GlobalProps = {
 };
 
 type GroupOfChatsProps = GlobalProps & {
-  name: string;
+  title: string;
   chats: Chat[];
 };
 
@@ -36,17 +36,24 @@ type GroupedChats = {
 
 type AIChatProps = Chat & GlobalProps;
 
-function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
+function AIChat({
+  id,
+  title,
+  isTaskRunning,
+  renameChat,
+  deleteChat,
+  onClose,
+}: AIChatProps) {
   const t = useTranslations("chat");
   const pathname = usePathname();
   const currentChatId = useChatRoute(pathname);
   const isSelected = currentChatId === id;
   const streamingChatIds = useStreamingChatIds();
-  const isGenerating = streamingChatIds.has(id);
+  const isGenerating = streamingChatIds.has(id) || isTaskRunning;
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
-  const [title, setTitle] = useState(name);
+  const [chatTitle, setTitle] = useState(title);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,8 +66,8 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
   };
 
   useEffect(() => {
-    setTitle(name);
-  }, [name]);
+    setTitle(title);
+  }, [title]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -89,10 +96,10 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
   }, [isRenaming]);
 
   const saveRename = async () => {
-    const newTitle = title.trim();
+    const newTitle = chatTitle.trim();
 
-    if (!newTitle || newTitle === name) {
-      setTitle(name);
+    if (!newTitle || newTitle === title) {
+      setTitle(title);
       setIsRenaming(false);
       return;
     }
@@ -102,13 +109,13 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
 
       setIsRenaming(false);
     } catch {
-      setTitle(name);
+      setTitle(title);
       setIsRenaming(false);
     }
   };
 
   const cancelRename = () => {
-    setTitle(name);
+    setTitle(title);
     setIsRenaming(false);
   };
 
@@ -151,7 +158,7 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
         {isRenaming ? (
           <input
             ref={inputRef}
-            value={title}
+            value={chatTitle}
             onChange={(e) => setTitle(e.target.value)}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleRenameKeyDown}
@@ -170,7 +177,7 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
                 <span className="relative inline-flex size-2 rounded-full bg-primary" />
               </span>
             )}
-            <span className="truncate">{title}</span>
+            <span className="truncate">{chatTitle}</span>
           </p>
         )}
 
@@ -293,7 +300,7 @@ function AIChat({ id, name, renameChat, deleteChat, onClose }: AIChatProps) {
 }
 
 function GroupOfChats({
-  name,
+  title,
   chats,
   renameChat,
   deleteChat,
@@ -301,7 +308,7 @@ function GroupOfChats({
 }: GroupOfChatsProps) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-sans text-caption text-foreground-muted">{name}</p>
+      <p className="font-sans text-caption text-foreground-muted">{title}</p>
       <div className="flex flex-col">
         {chats.map((chat) => (
           <AIChat
@@ -395,7 +402,7 @@ export function SidebarChats({
     <div className="flex-1 overflow-y-auto px-6 pt-3 flex flex-col gap-3">
       {todayChats.length > 0 && (
         <GroupOfChats
-          name={t("today")}
+          title={t("today")}
           chats={todayChats}
           renameChat={renameChat}
           deleteChat={deleteChat}
@@ -404,7 +411,7 @@ export function SidebarChats({
       )}
       {yesterdayChats.length > 0 && (
         <GroupOfChats
-          name={t("yesterday")}
+          title={t("yesterday")}
           chats={yesterdayChats}
           renameChat={renameChat}
           deleteChat={deleteChat}
@@ -413,7 +420,7 @@ export function SidebarChats({
       )}
       {lastDaysChats.length > 0 && (
         <GroupOfChats
-          name={t("lastWeek")}
+          title={t("lastWeek")}
           chats={lastDaysChats}
           renameChat={renameChat}
           deleteChat={deleteChat}
@@ -422,7 +429,7 @@ export function SidebarChats({
       )}
       {oldChats.length > 0 && (
         <GroupOfChats
-          name={t("old")}
+          title={t("old")}
           chats={oldChats}
           renameChat={renameChat}
           deleteChat={deleteChat}
