@@ -86,10 +86,25 @@ export function setChatStreamMessages(chatId: string, messages: Message[]) {
   emit();
 }
 
+const lastSnapshots = new Map<string, Message[]>();
+
+export function setLastStreamSnapshot(chatId: string, messages: Message[]) {
+  lastSnapshots.set(chatId, messages);
+}
+
+export function getLastStreamSnapshot(chatId: string): Message[] | null {
+  return lastSnapshots.get(chatId) ?? null;
+}
+
+export function clearLastStreamSnapshot(chatId: string) {
+  lastSnapshots.delete(chatId);
+}
+
 export function endChatStream(chatId: string) {
   const session = sessions.get(chatId);
   if (!session) return;
 
+  setLastStreamSnapshot(chatId, session.messages);
   sessions.delete(chatId);
   emit();
 }
@@ -108,4 +123,20 @@ export function useStreamingChatIds(): ReadonlySet<string> {
     getStreamingChatIdsSnapshot,
     () => EMPTY_STREAMING_SET,
   );
+}
+
+type TaskFlagListener = (chatId: string, running: boolean) => void;
+const taskFlagListeners = new Set<TaskFlagListener>();
+
+export function subscribeTaskRunningFlags(
+  listener: TaskFlagListener,
+): () => void {
+  taskFlagListeners.add(listener);
+  return () => {
+    taskFlagListeners.delete(listener);
+  };
+}
+
+export function notifyTaskRunning(chatId: string, running: boolean) {
+  taskFlagListeners.forEach((listener) => listener(chatId, running));
 }
