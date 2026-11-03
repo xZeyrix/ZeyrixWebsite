@@ -1,8 +1,16 @@
-import { Chat, ApiChat, mapChat } from "../types/chat";
+import { Chat } from "../types/chat";
 import { useEffect, useState, useCallback, Dispatch, SetStateAction } from "react";
 import { useConnection } from "../components/auth/ConnectionContext";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
 import { apiFetch } from "../lib/api";
+import {
+  isChatStreaming,
+  subscribeTaskRunningFlags,
+} from "./chatStreamStore";
+import {
+  resubscribeRunningTasks,
+  subscribeToChatTask,
+} from "../lib/chatTaskStream";
 
 export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -10,6 +18,18 @@ export function useChats() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const { state, auth } = useConnection();
+
+  const markTaskRunning = useCallback((chatId: string, running: boolean) => {
+    setChats((prev) =>
+      prev.map((chat) =>
+        chat.id === chatId ? { ...chat, isTaskRunning: running } : chat,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    return subscribeTaskRunningFlags(markTaskRunning);
+  }, [markTaskRunning]);
 
   useEffect(() => {
     async function loadChats() {
@@ -26,8 +46,16 @@ export function useChats() {
         });
 
         if (!res.ok) throw new Error(`Backend вернул ${res.status}`);
-        const data: ApiChat[] = await res.json();
-        setChats(data.map(mapChat));
+        const data: Chat[] = await res.json();
+        setChats(data);
+
+        const runningIds = data
+          .filter((chat) => chat.isTaskRunning && !isChatStreaming(chat.id))
+          .map((chat) => chat.id);
+
+        resubscribeRunningTasks(runningIds, {
+          onEnded: (chatId) => markTaskRunning(chatId, false),
+        });
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load chats",
@@ -38,7 +66,30 @@ export function useChats() {
     }
 
     loadChats();
-  }, [state, auth]);
+  }, [state, auth, markTaskRunning]);
+
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState !== "visible") return;
+
+      setChats((prev) => {
+        const ids = prev
+          .filter((chat) => chat.isTaskRunning && !isChatStreaming(chat.id))
+          .map((chat) => chat.id);
+
+        for (const id of ids) {
+          void subscribeToChatTask(id, {
+            onEnded: (chatId) => markTaskRunning(chatId, false),
+          });
+        }
+
+        return prev;
+      });
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [markTaskRunning]);
 
   const createChat = useCallback(
     async (
@@ -68,8 +119,11 @@ export function useChats() {
           throw new Error(error.code);
         }
 
-        const data: ApiChat = await res.json();
-        setChats((prev) => [mapChat(data), ...prev]);
+        const data: Chat = await res.json();
+        setChats((prev) => [
+          { ...data, isTaskRunning: true },
+          ...prev,
+        ]);
 
         return data.id;
       } catch (err) {
