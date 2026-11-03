@@ -1,6 +1,10 @@
 import { PendingAttachment, Attachment } from "@/src/types/chat";
-import { useEffect, useState, type ReactNode } from "react";
-import { getCachedFile } from "@/src/lib/FileCache";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  FileNotFoundError,
+  fetchAndCacheFile,
+  getCachedFile,
+} from "@/src/lib/FileCache";
 import FileIcon from "@/src/icons/file.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import ErrorIcon from "@/src/icons/warning.svg";
@@ -10,35 +14,56 @@ import * as XLSX from "xlsx";
 import { createPortal } from "react-dom";
 import mammoth from "mammoth";
 
-function useCachedFileUrl(fileId: string | null) {
+type FileLoadStatus = "checking" | "idle" | "loading" | "ready" | "missing" | "error";
+
+function useAttachmentFile(fileId: string | null, mimeType: string) {
   const [src, setSrc] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(fileId));
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [status, setStatus] = useState<FileLoadStatus>(
+    fileId ? "checking" : "idle",
+  );
+
+  const applyBlob = useCallback((next: Blob) => {
+    setBlob(next);
+    setSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(next);
+    });
+    setStatus("ready");
+  }, []);
 
   useEffect(() => {
-    let objectUrl: string | null = null;
     let cancelled = false;
+    let objectUrl: string | null = null;
 
-    async function load() {
+    async function loadFromCache() {
       if (!fileId) {
-        setIsLoading(false);
+        setStatus("idle");
         return;
       }
-      const blob = await getCachedFile(fileId);
-      if (!cancelled && blob) {
-        objectUrl = URL.createObjectURL(blob);
+
+      setStatus("checking");
+      const cached = await getCachedFile(fileId);
+      if (cancelled) return;
+
+      if (cached) {
+        objectUrl = URL.createObjectURL(cached);
+        setBlob(cached);
         setSrc(objectUrl);
+        setStatus("ready");
+        return;
       }
-      if (!cancelled) setIsLoading(false);
+
+      setStatus("idle");
     }
 
     function handleCached(event: Event) {
       if ((event as CustomEvent<string>).detail === fileId) {
-        setIsLoading(true);
-        void load();
+        void loadFromCache();
       }
     }
 
-    void load();
+    void loadFromCache();
     window.addEventListener("zeyrix-file-cached", handleCached);
     return () => {
       cancelled = true;
@@ -47,7 +72,18 @@ function useCachedFileUrl(fileId: string | null) {
     };
   }, [fileId]);
 
-  return { src, isLoading };
+  const download = useCallback(async () => {
+    if (!fileId) return;
+    setStatus("loading");
+    try {
+      const next = await fetchAndCacheFile(fileId, mimeType);
+      applyBlob(next);
+    } catch (err) {
+      setStatus(err instanceof FileNotFoundError ? "missing" : "error");
+    }
+  }, [fileId, mimeType, applyBlob]);
+
+  return { src, blob, status, download };
 }
 
 function isDocument(mimeType: string, filename: string) {
@@ -349,23 +385,127 @@ export function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
   </div>;
 }
 
+function ImageLoadingPlaceholder() {
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
+      <div className="absolute inset-0 animate-pulse bg-linear-to-br from-elevated via-border/80 to-elevated" />
+      <div className="relative z-10 flex flex-col items-center gap-1.5 text-foreground-muted">
+        <div className="size-8 rounded-md border border-border/80 bg-background/40" />
+        <span className="text-[10px] tracking-wide">Loading</span>
+      </div>
+    </div>
+  );
+}
+
+function FileLoadingPlaceholder({ filename }: { filename: string }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 py-2">
+      <div className="relative">
+        <FileIcon className="size-5 text-foreground-muted" />
+        <span className="absolute -bottom-1 -right-1 size-2 animate-ping rounded-full bg-primary/80" />
+      </div>
+      <p className="w-full truncate text-center text-caption text-foreground-muted">
+        {filename}
+      </p>
+      <p className="text-[10px] text-foreground-muted">Loading…</p>
+    </div>
+  );
+}
+
+function GeneratedIdlePlaceholder({
+  isImage,
+  filename,
+  size,
+  onDownload,
+}: {
+  isImage: boolean;
+  filename: string;
+  size: number;
+  onDownload: () => void;
+}) {
+  const sizeLabel =
+    size >= 1048576
+      ? `${(size / 1048576).toFixed(1)} MB`
+      : size >= 1024
+        ? `${(size / 1024).toFixed(0)} KB`
+        : `${size} B`;
+
+  return (
+    <button
+      type="button"
+      className={`
+        group relative flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 py-2
+        hover:cursor-pointer hover:bg-border/30 transition-colors
+        ${isImage ? "bg-linear-to-br from-elevated to-border/40" : ""}
+      `}
+      onClick={onDownload}
+      title="Download file"
+    >
+      {isImage ? (
+        <>
+          <div className="size-25 rounded-md border border-dashed border-border bg-background/30" />
+        </>
+      ) : (
+        <>
+          <FileIcon className="size-5 text-foreground-secondary" />
+          <p className="w-full truncate text-center text-caption text-foreground-secondary">
+            {filename}
+          </p>
+          <p className="text-[10px] text-foreground-muted">{sizeLabel}</p>
+        </>
+      )}
+      <span className="absolute right-1.5 top-1.5 rounded-full border border-border bg-background/90 p-1 text-primary shadow-sm group-hover:bg-primary group-hover:text-background transition-colors">
+        <DownloadIcon className="size-3" />
+      </span>
+    </button>
+  );
+}
+
+function MissingPlaceholder({ isImage }: { isImage: boolean }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center">
+      <ErrorIcon className="size-4 text-error" />
+      <p className="text-[10px] leading-tight text-foreground-muted">
+        {isImage ? "Image unavailable" : "File unavailable"}
+      </p>
+    </div>
+  );
+}
+
 export function MessageAttachment(attachment: Attachment) {
-  const { fileId, filename, size, mimeType } = attachment;
+  const { fileId, filename, size, mimeType, generated } = attachment;
   const isImage = mimeType.startsWith("image/");
-  const { src, isLoading } = useCachedFileUrl(fileId);
+  const { src, blob, status, download } = useAttachmentFile(
+    fileId,
+    mimeType,
+  );
   const [imageOpen, setImageOpen] = useState(false);
   const [document, setDocument] = useState<Blob | null>(null);
 
   async function openDocument() {
-    const blob = await getCachedFile(fileId);
-    if (blob) setDocument(blob);
+    if (blob) {
+      setDocument(blob);
+      return;
+    }
+    const cached = await getCachedFile(fileId);
+    if (cached) setDocument(cached);
   }
+
+  const showLoading = status === "checking" || status === "loading";
+  const showReady = status === "ready" && (src || blob);
+  const showIdle = status === "idle" && generated;
+  const showMissing = status === "missing" || status === "error";
 
   return (
     <div className="relative h-30 w-30 shrink-0 overflow-hidden rounded-lg border border-border bg-elevated">
-      {isImage && isLoading ? (
-        <div className="h-full w-full animate-pulse bg-linear-to-r from-elevated via-border to-elevated" />
-      ) : isImage && src ? (
+      {showLoading &&
+        (isImage ? (
+          <ImageLoadingPlaceholder />
+        ) : (
+          <FileLoadingPlaceholder filename={filename} />
+        ))}
+
+      {!showLoading && showReady && isImage && src && (
         <>
           <motion.img
             layoutId={`attachment-${fileId}`}
@@ -384,8 +524,11 @@ export function MessageAttachment(attachment: Attachment) {
             onClose={() => setImageOpen(false)}
           />
         </>
-      ) : (
+      )}
+
+      {!showLoading && showReady && !isImage && (
         <button
+          type="button"
           className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 py-2 hover:cursor-pointer"
           onClick={() => {
             if (isDocument(mimeType, filename)) void openDocument();
@@ -394,9 +537,32 @@ export function MessageAttachment(attachment: Attachment) {
           <FileIcon className="size-4" />
           <p className="w-full truncate text-center text-body-sm">{filename}</p>
           <p className="text-caption text-foreground-muted">
-            {(size / 1048576).toFixed(2)} MB
+            {size >= 1048576
+              ? `${(size / 1048576).toFixed(2)} MB`
+              : `${Math.max(1, Math.round(size / 1024))} KB`}
           </p>
         </button>
+      )}
+
+      {!showLoading && showIdle && (
+        <GeneratedIdlePlaceholder
+          isImage={isImage}
+          filename={filename}
+          size={size}
+          onDownload={() => void download()}
+        />
+      )}
+
+      {!showLoading && showMissing && <MissingPlaceholder isImage={isImage} />}
+
+      {/* fallback: user file without cache/error path already handled */}
+      {!showLoading && !showReady && !showIdle && !showMissing && (
+        <GeneratedIdlePlaceholder
+          isImage={isImage}
+          filename={filename}
+          size={size}
+          onDownload={() => void download()}
+        />
       )}
 
       {document && (
