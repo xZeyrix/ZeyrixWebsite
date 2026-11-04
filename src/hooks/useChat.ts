@@ -12,12 +12,15 @@ import { useLocale } from "next-intl";
 import { useConnection } from "../components/auth/ConnectionContext";
 import { apiFetch } from "../lib/api";
 import { AccessInfoModalStatus } from "../components/modals/accessInfo";
-import { cacheFile } from "../lib/FileCache";
+import { cacheGeneratedFileIds } from "../lib/FileCache";
 import {
   abortChatStream,
   endChatStream,
+  clearLastStreamSnapshot,
+  getLastStreamSnapshot,
   getStreamMessages,
   isChatStreaming,
+  notifyTaskRunning,
   startChatStream,
   subscribeChatStreams,
   updateChatStreamMessages,
@@ -100,6 +103,7 @@ function generatedFileToAttachment(file: GeneratedFile): Attachment {
     filename: file.filename,
     mimeType: file.mimeType,
     size: file.sizeBytes,
+    generated: true,
   };
 }
 
@@ -115,12 +119,27 @@ function normalizeAttachment(attachment: Attachment & { sizeBytes?: number }) {
 function normalizeMessage(message: Message & {
   generatedFiles?: GeneratedFile[];
   generatedImages?: GeneratedFile[];
+  generated_files?: GeneratedFile[];
+  generated_images?: GeneratedFile[];
 }): Message {
-  const generatedFiles = message.generatedFiles ?? message.generatedImages ?? [];
+  const generatedFiles =
+    message.generatedFiles ??
+    message.generatedImages ??
+    message.generated_files ??
+    message.generated_images ??
+    [];
   return {
     ...message,
     attachments: [
-      ...(message.attachments ?? []).map(normalizeAttachment),
+      ...(message.attachments ?? []).map((att) => {
+        const normalized = normalizeAttachment(att);
+        const isGenerated = Boolean(
+          att.generated ??
+            (att as { is_generated?: boolean }).is_generated ??
+            (att as { source?: string }).source === "generated",
+        );
+        return isGenerated ? { ...normalized, generated: true } : normalized;
+      }),
       ...generatedFiles.map(generatedFileToAttachment),
     ],
   };
@@ -163,6 +182,14 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       if (live) {
         setMessages(live);
         setLoading(false);
+        return;
+      }
+
+      const snapshot = getLastStreamSnapshot(chatId);
+      if (snapshot) {
+        setMessages(snapshot);
+        setLoading(false);
+        clearLastStreamSnapshot(chatId);
       }
     });
   }, [chatId]);
@@ -213,7 +240,14 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         return;
       }
 
-      setLoading(true);
+      const snapshot = getLastStreamSnapshot(chatId);
+      if (snapshot) {
+        setMessages(snapshot);
+        setLoading(false);
+        clearLastStreamSnapshot(chatId);
+      }
+
+      setLoading(!snapshot);
       setError(null);
 
       try {
@@ -234,8 +268,22 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
           if (data.length > 0) {
             clearOptimisticMessages(chatId);
-            setMessages(data);
-          } else {
+            // Не затираем более «живой» snapshot стрима устаревшим pending с API
+            const hasPendingOnly =
+              data.some(
+                (m) => m.role === "assistant" && m.status === "pending",
+              ) &&
+              snapshot &&
+              snapshot.some(
+                (m) =>
+                  m.role === "assistant" &&
+                  m.status !== "pending" &&
+                  m.status !== "approval_required",
+              );
+            if (!hasPendingOnly) {
+              setMessages(data);
+            }
+          } else if (!snapshot) {
             setMessages(getOptimisticMessages(chatId));
           }
         }
@@ -386,28 +434,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   }
 
   async function cacheGeneratedFiles(files: GeneratedFile[]) {
-    await Promise.all(
-      files.map(async (file) => {
-        try {
-          const tokenResponse = await apiFetch(`/api/files/${file.accessToken}`, {
-            credentials: "include",
-          });
-          if (!tokenResponse.ok) {
-            throw new Error(`Token endpoint returned ${tokenResponse.status}`);
-          }
-
-          const { url }: { url: string } = await tokenResponse.json();
-          const fileResponse = await fetch(url);
-          if (!fileResponse.ok) {
-            throw new Error(`File download returned ${fileResponse.status}`);
-          }
-
-          await cacheFile(file.id, await fileResponse.blob());
-        } catch (error) {
-          console.error(`Failed to cache generated file ${file.id}`, error);
-        }
-      }),
-    );
+    await cacheGeneratedFileIds(files);
   }
 
   function handleStreamEvent(
@@ -545,8 +572,8 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
       setOptimisticMessages(targetChatId, nextMessages);
       startChatStream(targetChatId, nextMessages, userAbort);
+      notifyTaskRunning(targetChatId, true);
 
-      // Если смотрим этот чат — сразу рисуем
       if (targetChatId === chatId || !chatId) {
         setMessages(nextMessages);
         setLoading(false);
@@ -565,6 +592,9 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         });
       };
 
+      let receivedStreamEvent = false;
+      let handoffToBackendTask = false;
+
       try {
         try {
           await streamAI(
@@ -576,7 +606,10 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
               locale: locale,
               timezone: timezone,
             },
-            (event) => handleStreamEvent(event, updateLastAssistantMessage),
+            (event) => {
+              receivedStreamEvent = true;
+              handleStreamEvent(event, updateLastAssistantMessage);
+            },
             userAbort.signal,
           );
         } catch (error) {
@@ -598,6 +631,14 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
           if (apiError.code === "INVITE_REQUIRED") {
             setModalState(apiError.detail ?? null);
+          }
+
+          if (
+            receivedStreamEvent ||
+            apiError.code === "STREAM_ERROR"
+          ) {
+            handoffToBackendTask = true;
+            return;
           }
 
           updateChatStreamMessages(targetChatId, (prev) => {
@@ -633,6 +674,18 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           }
         }
         endChatStream(targetChatId);
+
+        if (handoffToBackendTask) {
+          // Переподписка на ту же task через новый API
+          notifyTaskRunning(targetChatId, true);
+          void import("../lib/chatTaskStream").then(({ subscribeToChatTask }) =>
+            subscribeToChatTask(targetChatId, {
+              onEnded: (id) => notifyTaskRunning(id, false),
+            }),
+          );
+        } else {
+          notifyTaskRunning(targetChatId, false);
+        }
       }
     },
     [chatId, locale, timezone, setModalState],
@@ -678,6 +731,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       })();
 
       startChatStream(targetChatId, withPending, userAbort);
+      notifyTaskRunning(targetChatId, true);
       setMessages(withPending);
 
       const updateApproveRequiredMessage = (
@@ -761,15 +815,17 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           }
         }
         endChatStream(targetChatId);
+        notifyTaskRunning(targetChatId, false);
       }
     },
     [locale, timezone, setModalState],
   );
 
   const stopGeneration = useCallback(() => {
-    if (chatId) {
-      abortChatStream(chatId);
-    }
+    if (!chatId) return;
+    void import("../lib/chatTaskStream").then(({ cancelChatTask }) =>
+      cancelChatTask(chatId),
+    );
   }, [chatId]);
 
   return { messages, loading, error, sending, sendMessage, applyToolUse, retrySendMessage, stopGeneration, setShouldMessagesLoad };

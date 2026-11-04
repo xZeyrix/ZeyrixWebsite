@@ -85,36 +85,23 @@ export type Attachment = {
   filename: string;
   mimeType: string;
   size: number;
+  generated?: boolean;
 };
 
 export type GeneratedFile = {
   type: "document" | "image";
   id: string;
-  accessToken: string;
   mimeType: string;
   filename: string;
   sizeBytes: number;
 };
 
-export type ApiChat = {
-  id: string;
-  title: string;
-  updated_at: string;
-};
-
 export type Chat = {
   id: string;
-  name: string;
+  title: string;
   updatedAt: string;
+  isTaskRunning: boolean;
 };
-
-export function mapChat(chat: ApiChat): Chat {
-  return {
-    id: chat.id,
-    name: chat.title,
-    updatedAt: chat.updated_at,
-  };
-}
 
 export interface PendingAttachment {
   localId: string;
