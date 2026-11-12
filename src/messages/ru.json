@@ -14,7 +14,8 @@
     "delete": "Удалить",
     "deleteModalTitle": "Вы уверены?",
     "deleteModalText": "Выбранный чат будет навсегда удален без возможности восстановления.",
-    "cancel": "Отменить"
+    "cancel": "Отменить",
+    "deleteModalTextTask": "Выбранная задача будет навсегда удалена без возможности восстановления."
   },
   "sidebarHeader": {
     "newChat": "Новый чат"
@@ -24,7 +25,12 @@
     "today": "Сегодня",
     "yesterday": "Вчера",
     "lastWeek": "За последние 7 дней",
-    "old": "Старше"
+    "old": "Старше",
+    "tabChats": "Чаты",
+    "tabTasks": "Задачи",
+    "failedTasks": "Не удалось загрузить задачи.",
+    "emptyChats": "Чатов пока нет.",
+    "emptyTasks": "Запланированных задач пока нет."
   },
   "sidebarFooter": {
     "guest": "Гость"
@@ -80,12 +86,10 @@
     "worked": "Работал",
     "awaiting": "Ожидаю вашего решения...",
     "cancelled": "Отменено вами",
-
     "unknown": "Неизвестно",
     "reasoning": "Рассуждение",
     "tool_call": "Инструмент",
     "file_transcribe": "Вложение",
-
     "tool_call_in_progress": "Использую «{toolName}»",
     "tool_call_done": "Использовал «{toolName}»",
     "tool_call_error": "Не удалось использовать «{toolName}»",
@@ -94,61 +98,51 @@
     "tool_call_expired": "Время использования «{toolName}» истекло",
     "tool_call_forbidden": "Доступ к «{toolName}» запрещён",
     "unknown_tool": "неизвестный инструмент",
-
     "get_table_structure_in_progress": "Изучаю структуру базы данных...",
     "get_table_structure_done": "Структура базы данных изучена",
     "get_table_structure_error": "Не удалось изучить структуру базы данных",
     "get_table_structure_denied": "Вы запретили доступ к структуре базы данных",
     "get_table_structure_forbidden": "Доступ к структуре базы данных заблокирован",
-
     "select_in_progress": "Выполняю запрос к таблице {table}...",
     "select_done": "Получено {rows} строк из таблицы {table}",
     "select_error": "Не удалось выполнить запрос к таблице {table}",
     "select_denied": "Вы отменили выполнение запроса к базе данных",
     "select_forbidden": "Выполнение запроса к базе данных заблокировано",
-
     "insert_in_progress": "Добавляю данные в таблицу {table}...",
     "insert_done": "Добавлено {rows} строк в таблицу {table}",
     "insert_error": "Не удалось добавить данные в таблицу {table}",
     "insert_denied": "Вы отменили добавление данных",
     "insert_forbidden": "Добавление данных заблокировано",
-
     "update_in_progress": "Обновляю данные в таблице {table}...",
     "update_done": "Обновлено {rows} строк в таблице {table}",
     "update_error": "Не удалось обновить данные в таблице {table}",
     "update_denied": "Вы отменили обновление данных",
     "update_forbidden": "Обновление данных заблокировано",
-
     "delete_in_progress": "Удаляю данные из таблицы {table}...",
     "delete_done": "Удалено {rows} строк из таблицы {table}",
     "delete_error": "Не удалось удалить данные из таблицы {table}",
     "delete_denied": "Вы отменили удаление данных",
     "delete_forbidden": "Удаление данных заблокировано",
-
     "web_search_in_progress": "Ищу информацию в интернете...",
     "web_search_done": "Поиск в интернете завершён",
     "web_search_error": "Не удалось выполнить поиск в интернете",
     "web_search_denied": "Вы отменили поиск в интернете",
     "web_search_forbidden": "Поиск в интернете заблокирован",
-
     "fetch_webpage_in_progress": "Просматриваю веб-страницу...",
     "fetch_webpage_done": "Веб-страница просмотрена",
     "fetch_webpage_error": "Не удалось просмотреть веб-страницу",
     "fetch_webpage_denied": "Вы отменили просмотр веб-страницы",
     "fetch_webpage_forbidden": "Доступ к веб-странице заблокирован",
-
     "generate_image_in_progress": "Создаю изображение...",
     "generate_image_done": "Изображение создано",
     "generate_image_error": "Не удалось создать изображение",
     "generate_image_denied": "Вы отменили создание изображения",
     "generate_image_forbidden": "Создание изображения заблокировано",
-
     "generate_docx_in_progress": "Создаю документ Word...",
     "generate_docx_done": "Документ Word создан",
     "generate_docx_error": "Не удалось создать документ Word",
     "generate_docx_denied": "Вы отменили создание документа",
     "generate_docx_forbidden": "Создание документа заблокировано",
-
     "generate_excel_in_progress": "Создаю таблицу Excel...",
     "generate_excel_done": "Таблица Excel создана",
     "generate_excel_error": "Не удалось создать таблицу Excel",
@@ -653,5 +647,11 @@
     "title": "Не удаётся связаться с сервером",
     "text": "Проверьте ваше подключение к интернету и попробуйте снова.",
     "button": "Повторить попытку"
+  },
+  "taskPanel": {
+    "readOnlyHint": "Это запланированная задача. Отправка сообщений недоступна.",
+    "runningHint": "Сейчас выполняется запуск.",
+    "cancelTask": "Отменить запуск",
+    "cancelling": "Отмена…"
   }
 }
