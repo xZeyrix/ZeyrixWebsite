@@ -1,5 +1,6 @@
 import {
   AgentStep,
+  ConversationKind,
   GeneratedFile,
   Message,
   StreamEvent,
@@ -349,20 +350,26 @@ function mergeAttachments(
 }
 
 export type SubscribeToChatTaskOptions = {
-  onEnded?: (chatId: string) => void;
+  onEnded?: (conversationId: string) => void;
 };
 
+function objectsPath(kind: ConversationKind, conversationId: string) {
+  const segment = kind === "task" ? "tasks" : "chats";
+  return `/api/conversations/${segment}/${conversationId}/objects`;
+}
+
 export async function subscribeToChatTask(
-  chatId: string,
+  conversationId: string,
+  kind: ConversationKind = "chat",
   options: SubscribeToChatTaskOptions = {},
 ): Promise<void> {
-  if (isChatStreaming(chatId)) return;
+  if (isChatStreaming(conversationId)) return;
 
   const controller = new AbortController();
 
   let initialMessages: Message[] = [];
   try {
-    const res = await apiFetch(`/api/chats/${chatId}/get_messages`, {
+    const res = await apiFetch(objectsPath(kind, conversationId), {
       credentials: "include",
       signal: controller.signal,
     });
@@ -371,7 +378,7 @@ export async function subscribeToChatTask(
       initialMessages = (Array.isArray(data) ? data : []).map(normalizeMessage);
     }
   } catch {
-
+    // ignore preload errors; stream will still start
   }
 
   const last = initialMessages[initialMessages.length - 1];
@@ -393,10 +400,10 @@ export async function subscribeToChatTask(
     ];
   }
 
-  startChatStream(chatId, initialMessages, controller);
+  startChatStream(conversationId, initialMessages, controller);
 
   const updateLastAssistant = (updater: (m: Message) => Message) => {
-    updateChatStreamMessages(chatId, (prev) => {
+    updateChatStreamMessages(conversationId, (prev) => {
       const index = prev.findLastIndex((m) => m.role === "assistant");
       if (index === -1) return prev;
       return prev.map((message, i) =>
@@ -407,8 +414,8 @@ export async function subscribeToChatTask(
 
   try {
     await streamAI(
-      apiUrl(`/api/chats/${chatId}/subscribe_to_task`),
-      undefined,
+      apiUrl(`/api/conversations/subscribe_to_task`),
+      { kind, conversationId },
       (event) => applyStreamEvent(event, updateLastAssistant),
       controller.signal,
     );
@@ -416,7 +423,7 @@ export async function subscribeToChatTask(
     if (isAbortError(err)) {
       return;
     }
-    updateChatStreamMessages(chatId, (prev) => {
+    updateChatStreamMessages(conversationId, (prev) => {
       const lastMsg = prev[prev.length - 1];
       if (
         lastMsg?.role === "assistant" &&
@@ -429,28 +436,33 @@ export async function subscribeToChatTask(
       return prev;
     });
   } finally {
-    const live = getStreamMessages(chatId);
+    const live = getStreamMessages(conversationId);
     if (live?.length) {
-      setLastStreamSnapshot(chatId, live);
+      setLastStreamSnapshot(conversationId, live);
     }
 
-    endChatStream(chatId);
-    notifyTaskRunning(chatId, false);
-    options.onEnded?.(chatId);
+    endChatStream(conversationId);
+    notifyTaskRunning(conversationId, false);
+    options.onEnded?.(conversationId);
   }
 }
 
-export async function cancelChatTask(chatId: string): Promise<void> {
+export async function cancelChatTask(
+  conversationId: string,
+  kind: ConversationKind = "chat",
+): Promise<void> {
   try {
-    await apiFetch(`/api/chats/${chatId}/cancel_task`, {
+    await apiFetch(`/api/conversations/cancel_task`, {
       method: "POST",
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, conversationId }),
     });
   } catch (err) {
-    console.error("Failed to cancel chat task", err);
+    console.error("Failed to cancel conversation task", err);
   }
 
-  updateChatStreamMessages(chatId, (prev) =>
+  updateChatStreamMessages(conversationId, (prev) =>
     prev.map((message, index) => {
       if (index === prev.findLastIndex((m) => m.role === "assistant")) {
         return { ...message, status: "cancelled" };
@@ -459,17 +471,17 @@ export async function cancelChatTask(chatId: string): Promise<void> {
     }),
   );
 
-  abortChatStream(chatId);
-  notifyTaskRunning(chatId, false);
+  abortChatStream(conversationId);
+  notifyTaskRunning(conversationId, false);
 }
 
 export function resubscribeRunningTasks(
-  chatIds: string[],
+  items: Array<{ id: string; kind: ConversationKind }>,
   options: SubscribeToChatTaskOptions = {},
 ) {
-  for (const chatId of chatIds) {
-    if (!isChatStreaming(chatId)) {
-      void subscribeToChatTask(chatId, options);
+  for (const item of items) {
+    if (!isChatStreaming(item.id)) {
+      void subscribeToChatTask(item.id, item.kind, options);
     }
   }
 }
