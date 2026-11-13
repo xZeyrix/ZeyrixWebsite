@@ -4,17 +4,35 @@ import { useState } from "react";
 import SidebarIcon from "@/src/icons/sidebar.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import { SidebarMobile } from "../sidebar/SidebarMobile";
-import { Chat } from "@/src/types/chat";
-import { useRouter } from "next/navigation"; 
+import { Conversation, ConversationKind } from "@/src/types/chat";
+import { useRouter } from "next/navigation";
 
 type ChatHeaderProps = {
-  chats: Chat[];
+  chats: Conversation[];
+  tasks: Conversation[];
   loading?: boolean;
-  renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
-  deleteChat: (chatId: string) => Promise<undefined>;
+  renameConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+    newTitle: string,
+  ) => Promise<undefined>;
+  deleteConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+  ) => Promise<undefined>;
+  sidebarView: ConversationKind;
+  onSidebarViewChange: (view: ConversationKind) => void;
 };
 
-export function ChatHeader({ chats, loading, renameChat, deleteChat }: ChatHeaderProps) {
+export function ChatHeader({
+  chats,
+  tasks,
+  loading,
+  renameConversation,
+  deleteConversation,
+  sidebarView,
+  onSidebarViewChange,
+}: ChatHeaderProps) {
   const [isSideBarOpen, setIsSideBarOpen] = useState(false);
   const [isSidebarMounted, setIsSidebarMounted] = useState(false);
   const router = useRouter();
@@ -36,10 +54,7 @@ export function ChatHeader({ chats, loading, renameChat, deleteChat }: ChatHeade
         <SidebarIcon className="text-foreground-muted size-5" />
       </div>
       <h4 className="text-foreground font-sans text-h4 px-3">Zeyrix AI</h4>
-      <div 
-        className="p-3.5"
-        onClick={() => router.back()}
-      >
+      <div className="p-3.5" onClick={() => router.back()}>
         <CloseIcon className="text-foreground-muted size-4" />
       </div>
 
@@ -49,9 +64,12 @@ export function ChatHeader({ chats, loading, renameChat, deleteChat }: ChatHeade
           onClose={closeSidebar}
           onExited={handleSidebarExited}
           chats={chats}
+          tasks={tasks}
           loading={loading}
-          renameChat={renameChat}
-          deleteChat={deleteChat}
+          renameConversation={renameConversation}
+          deleteConversation={deleteConversation}
+          sidebarView={sidebarView}
+          onSidebarViewChange={onSidebarViewChange}
         />
       )}
     </div>

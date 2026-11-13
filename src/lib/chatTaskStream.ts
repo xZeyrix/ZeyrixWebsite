@@ -1,5 +1,6 @@
 import {
   AgentStep,
+  ConversationKind,
   GeneratedFile,
   Message,
   StreamEvent,
@@ -348,21 +349,75 @@ function mergeAttachments(
   return Array.from(map.values());
 }
 
+export type SubscribeResult =
+  | "already_streaming"
+  | "connected"
+  | "no_task"
+  | "error"
+  | "aborted"
+  | "already_executed";
+
 export type SubscribeToChatTaskOptions = {
-  onEnded?: (chatId: string) => void;
+  onEnded?: (conversationId: string, result: SubscribeResult) => void;
+  /** External abort (e.g. user switched tasks) */
+  signal?: AbortSignal;
+  /** If set, skip streaming when objects already contain an execution at/after this time */
+  nextRunAt?: string | null;
 };
 
+function objectsPath(kind: ConversationKind, conversationId: string) {
+  const segment = kind === "task" ? "tasks" : "chats";
+  return `/api/conversations/${segment}/${conversationId}/objects`;
+}
+
+function isNoActiveTaskError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  let msg = err.message;
+  try {
+    const parsed = JSON.parse(err.message) as {
+      message?: string;
+      detail?: string;
+      user_detail?: string;
+      code?: string;
+    };
+    msg = [parsed.message, parsed.detail, parsed.user_detail, parsed.code]
+      .filter(Boolean)
+      .join(" ");
+  } catch {
+    // plain text
+  }
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("no task") ||
+    lower.includes("don't have an active task") ||
+    lower.includes("do not have an active task") ||
+    lower.includes("no longer available") ||
+    lower.includes("invalid conversation reference") ||
+    lower.includes("not available")
+  );
+}
+
 export async function subscribeToChatTask(
-  chatId: string,
+  conversationId: string,
+  kind: ConversationKind = "chat",
   options: SubscribeToChatTaskOptions = {},
-): Promise<void> {
-  if (isChatStreaming(chatId)) return;
+): Promise<SubscribeResult> {
+  if (isChatStreaming(conversationId)) return "already_streaming";
 
   const controller = new AbortController();
+  const onExternalAbort = () => {
+    controller.abort(options.signal?.reason);
+  };
+  if (options.signal) {
+    if (options.signal.aborted) {
+      return "aborted";
+    }
+    options.signal.addEventListener("abort", onExternalAbort);
+  }
 
   let initialMessages: Message[] = [];
   try {
-    const res = await apiFetch(`/api/chats/${chatId}/get_messages`, {
+    const res = await apiFetch(objectsPath(kind, conversationId), {
       credentials: "include",
       signal: controller.signal,
     });
@@ -370,8 +425,25 @@ export async function subscribeToChatTask(
       const data = await res.json();
       initialMessages = (Array.isArray(data) ? data : []).map(normalizeMessage);
     }
-  } catch {
+  } catch (err) {
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    if (isAbortError(err)) return "aborted";
+    // ignore preload errors; stream will still start
+  }
 
+  // If this scheduled run already has an execution, do not open a stream.
+  if (options.nextRunAt) {
+    const runAtMs = new Date(options.nextRunAt).getTime();
+    if (!Number.isNaN(runAtMs)) {
+      const alreadyExecuted = initialMessages.some((m) => {
+        const created = new Date(m.createdAt).getTime();
+        return !Number.isNaN(created) && created >= runAtMs;
+      });
+      if (alreadyExecuted) {
+        options.signal?.removeEventListener("abort", onExternalAbort);
+        return "already_executed";
+      }
+    }
   }
 
   const last = initialMessages[initialMessages.length - 1];
@@ -393,10 +465,10 @@ export async function subscribeToChatTask(
     ];
   }
 
-  startChatStream(chatId, initialMessages, controller);
+  startChatStream(conversationId, initialMessages, controller);
 
   const updateLastAssistant = (updater: (m: Message) => Message) => {
-    updateChatStreamMessages(chatId, (prev) => {
+    updateChatStreamMessages(conversationId, (prev) => {
       const index = prev.findLastIndex((m) => m.role === "assistant");
       if (index === -1) return prev;
       return prev.map((message, i) =>
@@ -405,52 +477,77 @@ export async function subscribeToChatTask(
     });
   };
 
+  let result: SubscribeResult = "connected";
+  let didConnect = false;
+
   try {
     await streamAI(
-      apiUrl(`/api/chats/${chatId}/subscribe_to_task`),
-      undefined,
-      (event) => applyStreamEvent(event, updateLastAssistant),
+      apiUrl(`/api/conversations/subscribe_to_task`),
+      { kind, conversationId },
+      (event) => {
+        if (!didConnect) {
+          didConnect = true;
+          notifyTaskRunning(conversationId, true);
+        }
+        applyStreamEvent(event, updateLastAssistant);
+      },
       controller.signal,
     );
   } catch (err) {
     if (isAbortError(err)) {
-      return;
+      result = "aborted";
+    } else {
+      result = isNoActiveTaskError(err) ? "no_task" : "error";
+      updateChatStreamMessages(conversationId, (prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (
+          lastMsg?.role === "assistant" &&
+          lastMsg.status === "pending" &&
+          !lastMsg.text &&
+          !(lastMsg.steps && lastMsg.steps.length > 0)
+        ) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
     }
-    updateChatStreamMessages(chatId, (prev) => {
-      const lastMsg = prev[prev.length - 1];
-      if (
-        lastMsg?.role === "assistant" &&
-        lastMsg.status === "pending" &&
-        !lastMsg.text &&
-        !(lastMsg.steps && lastMsg.steps.length > 0)
-      ) {
-        return prev.slice(0, -1);
-      }
-      return prev;
-    });
   } finally {
-    const live = getStreamMessages(chatId);
+    options.signal?.removeEventListener("abort", onExternalAbort);
+
+    const live = getStreamMessages(conversationId);
     if (live?.length) {
-      setLastStreamSnapshot(chatId, live);
+      setLastStreamSnapshot(conversationId, live);
     }
 
-    endChatStream(chatId);
-    notifyTaskRunning(chatId, false);
-    options.onEnded?.(chatId);
+    endChatStream(conversationId);
+    if (didConnect) {
+      notifyTaskRunning(conversationId, false);
+    }
+    // Do not notify parent about aborted attempts (task switch / unmount)
+    if (result !== "aborted") {
+      options.onEnded?.(conversationId, result);
+    }
   }
+
+  return result;
 }
 
-export async function cancelChatTask(chatId: string): Promise<void> {
+export async function cancelChatTask(
+  conversationId: string,
+  kind: ConversationKind = "chat",
+): Promise<void> {
   try {
-    await apiFetch(`/api/chats/${chatId}/cancel_task`, {
+    await apiFetch(`/api/conversations/cancel_task`, {
       method: "POST",
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, conversationId }),
     });
   } catch (err) {
-    console.error("Failed to cancel chat task", err);
+    console.error("Failed to cancel conversation task", err);
   }
 
-  updateChatStreamMessages(chatId, (prev) =>
+  updateChatStreamMessages(conversationId, (prev) =>
     prev.map((message, index) => {
       if (index === prev.findLastIndex((m) => m.role === "assistant")) {
         return { ...message, status: "cancelled" };
@@ -459,17 +556,17 @@ export async function cancelChatTask(chatId: string): Promise<void> {
     }),
   );
 
-  abortChatStream(chatId);
-  notifyTaskRunning(chatId, false);
+  abortChatStream(conversationId);
+  notifyTaskRunning(conversationId, false);
 }
 
 export function resubscribeRunningTasks(
-  chatIds: string[],
+  items: Array<{ id: string; kind: ConversationKind }>,
   options: SubscribeToChatTaskOptions = {},
 ) {
-  for (const chatId of chatIds) {
-    if (!isChatStreaming(chatId)) {
-      void subscribeToChatTask(chatId, options);
+  for (const item of items) {
+    if (!isChatStreaming(item.id)) {
+      void subscribeToChatTask(item.id, item.kind, options);
     }
   }
 }

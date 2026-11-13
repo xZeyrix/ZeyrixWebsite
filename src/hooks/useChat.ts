@@ -7,6 +7,7 @@ import {
   StreamEvent,
   AgentStep,
   GeneratedFile,
+  ConversationKind,
 } from "../types/chat";
 import { useLocale } from "next-intl";
 import { useConnection } from "../components/auth/ConnectionContext";
@@ -145,7 +146,7 @@ function normalizeMessage(message: Message & {
   };
 }
 
-export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>, chatId?: string) {
+export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>, chatId?: string, kind: ConversationKind = "chat") {
   const [messages, setMessages] = useState<Message[]>(() => {
     if (chatId) {
       const live = getStreamMessages(chatId);
@@ -251,9 +252,13 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       setError(null);
 
       try {
-        const res = await apiFetch(`/api/chats/${chatId}/get_messages`, {
-          credentials: "include",
-        });
+        const objectsSegment = kind === "task" ? "tasks" : "chats";
+        const res = await apiFetch(
+          `/api/conversations/${objectsSegment}/${chatId}/objects`,
+          {
+            credentials: "include",
+          },
+        );
 
         if (!res.ok) throw new Error(`Backend вернул ${res.status}`);
         const data: Message[] = (await res.json()).map(normalizeMessage);
@@ -306,7 +311,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     return () => {
       cancelled = true;
     };
-  }, [chatId, state, shouldMessagesLoad]);
+  }, [chatId, kind, state, shouldMessagesLoad]);
 
   async function streamAI(
     url: string,
@@ -679,7 +684,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           // Переподписка на ту же task через новый API
           notifyTaskRunning(targetChatId, true);
           void import("../lib/chatTaskStream").then(({ subscribeToChatTask }) =>
-            subscribeToChatTask(targetChatId, {
+            subscribeToChatTask(targetChatId, "chat", {
               onEnded: (id) => notifyTaskRunning(id, false),
             }),
           );
@@ -824,9 +829,9 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   const stopGeneration = useCallback(() => {
     if (!chatId) return;
     void import("../lib/chatTaskStream").then(({ cancelChatTask }) =>
-      cancelChatTask(chatId),
+      cancelChatTask(chatId, kind),
     );
-  }, [chatId]);
+  }, [chatId, kind]);
 
   return { messages, loading, error, sending, sendMessage, applyToolUse, retrySendMessage, stopGeneration, setShouldMessagesLoad };
 }

@@ -1,53 +1,94 @@
 "use client";
 
 import DotsIcon from "@/src/icons/dots.svg";
-import { Chat } from "@/src/types/chat";
+import { Chat, Conversation, ConversationKind } from "@/src/types/chat";
 import { usePathname } from "next/navigation";
 import RenameIcon from "@/src/icons/rename.svg";
 import DeleteIcon from "@/src/icons/delete.svg";
 import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { format } from "date-fns";
+import { getDateFnsLocale } from "@/src/lib/date-fns-locale";
 import { createPortal } from "react-dom";
-import { notifyChatRouteChanged, useChatRoute } from "@/src/hooks/useChatRoute";
+import {
+  clearConversationRoute,
+  navigateToConversation,
+  useChatRoute,
+} from "@/src/hooks/useChatRoute";
 import { useStreamingChatIds } from "@/src/hooks/chatStreamStore";
 
 type GlobalProps = {
-  renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
-  deleteChat: (chatId: string) => Promise<undefined>;
+  kind: ConversationKind;
+  renameConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+    newTitle: string,
+  ) => Promise<undefined>;
+  deleteConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+  ) => Promise<undefined>;
   onClose?: () => void;
 };
 
 type GroupOfChatsProps = GlobalProps & {
   title: string;
-  chats: Chat[];
+  chats: Conversation[];
 };
 
 type SidebarChatsProps = GlobalProps & {
-  chats: Chat[];
+  chats: Conversation[];
   loading?: boolean;
 };
 
 type GroupedChats = {
-  todayChats: Chat[];
-  yesterdayChats: Chat[];
-  lastDaysChats: Chat[];
-  oldChats: Chat[];
+  todayChats: Conversation[];
+  yesterdayChats: Conversation[];
+  lastDaysChats: Conversation[];
+  oldChats: Conversation[];
 };
 
-type AIChatProps = Chat & GlobalProps;
+type AIChatProps = Conversation & GlobalProps;
+
+function formatNextRunAt(nextRunAt: string, locale: string): string {
+  try {
+    const date = new Date(nextRunAt);
+    if (Number.isNaN(date.getTime())) return nextRunAt;
+    const dfLocale = getDateFnsLocale(locale);
+    const now = new Date();
+    const isSameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+    if (isSameDay) {
+      return format(date, "HH:mm", { locale: dfLocale });
+    }
+    const isSameYear = date.getFullYear() === now.getFullYear();
+    return format(date, isSameYear ? "d MMM HH:mm" : "d MMM yyyy HH:mm", {
+      locale: dfLocale,
+    });
+  } catch {
+    return nextRunAt;
+  }
+}
 
 function AIChat({
   id,
   title,
   isTaskRunning,
-  renameChat,
-  deleteChat,
+  scheduleType,
+  nextRunAt,
+  kind,
+  renameConversation,
+  deleteConversation,
   onClose,
 }: AIChatProps) {
   const t = useTranslations("chat");
+  const tSidebar = useTranslations("sidebarChats");
+  const locale = useLocale();
   const pathname = usePathname();
-  const currentChatId = useChatRoute(pathname);
-  const isSelected = currentChatId === id;
+  const route = useChatRoute(pathname);
+  const isSelected = route?.id === id && route.kind === kind;
   const streamingChatIds = useStreamingChatIds();
   const isGenerating = streamingChatIds.has(id) || isTaskRunning;
 
@@ -72,20 +113,14 @@ function AIChat({
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node;
-
       const clickedInsideMenu = menuRef.current?.contains(target);
       const clickedDots = dotsRef.current?.contains(target);
-
       if (clickedInsideMenu || clickedDots) return;
-
       setIsMenuOpen(false);
     }
 
     document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -97,7 +132,6 @@ function AIChat({
 
   const saveRename = async () => {
     const newTitle = chatTitle.trim();
-
     if (!newTitle || newTitle === title) {
       setTitle(title);
       setIsRenaming(false);
@@ -105,8 +139,7 @@ function AIChat({
     }
 
     try {
-      await renameChat(id, newTitle);
-
+      await renameConversation(kind, id, newTitle);
       setIsRenaming(false);
     } catch {
       setTitle(title);
@@ -120,13 +153,8 @@ function AIChat({
   };
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      saveRename();
-    }
-
-    if (e.key === "Escape") {
-      cancelRename();
-    }
+    if (e.key === "Enter") saveRename();
+    if (e.key === "Escape") cancelRename();
   };
 
   return (
@@ -141,18 +169,9 @@ function AIChat({
                 ${isRenaming && "border border-primary"}
             `}
         onClick={() => {
-          if (isSelected) {
-            return;
-          }
-          
-          const chatPath = pathname.slice(0, pathname.indexOf("/chat") + 5);
-          window.history.pushState(
-            {},
-            "",
-            `${chatPath}?chat=${encodeURIComponent(id)}`,
-          );
-          notifyChatRouteChanged();
-          if (onClose) {onClose();}
+          if (isSelected) return;
+          navigateToConversation(kind, id, pathname);
+          onClose?.();
         }}
       >
         {isRenaming ? (
@@ -166,19 +185,41 @@ function AIChat({
             className="text-body-sm text-foreground-secondary w-full border-none outline-none rounded-lg py-[3.5px]"
           />
         ) : (
-          <p className="truncate text-body-sm text-foreground-secondary flex items-center gap-2 min-w-0">
-            {isGenerating && !isSelected && (
-              <span
-                className="relative flex size-2 shrink-0"
-                title="Generating"
-                aria-label="Generating"
-              >
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-primary" />
-              </span>
+          <div className="flex flex-col min-w-0 flex-1 gap-0.5 pr-1">
+            <p className="truncate text-body-sm text-foreground-secondary flex items-center gap-2 min-w-0">
+              {isGenerating && !isSelected && (
+                <span
+                  className="relative flex size-2 shrink-0"
+                  title="Generating"
+                  aria-label="Generating"
+                >
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                </span>
+              )}
+              <span className="truncate">{chatTitle}</span>
+            </p>
+            {kind === "task" && (scheduleType || nextRunAt) && (
+              <p className="truncate text-caption text-foreground-muted pl-0 flex items-center gap-1.5 min-w-0">
+                {scheduleType && (
+                  <span className="shrink-0 rounded bg-surface px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-foreground-muted">
+                    {scheduleType === "recurring"
+                      ? tSidebar("scheduleRecurring")
+                      : tSidebar("scheduleOnce")}
+                  </span>
+                )}
+                {nextRunAt && (
+                  <span className="truncate">
+                    {isGenerating
+                      ? tSidebar("runningNow")
+                      : tSidebar("nextRun", {
+                          time: formatNextRunAt(nextRunAt, locale),
+                        })}
+                  </span>
+                )}
+              </p>
             )}
-            <span className="truncate">{chatTitle}</span>
-          </p>
+          </div>
         )}
 
         <span
@@ -248,53 +289,48 @@ function AIChat({
         )}
       </button>
 
-      {isDeleting && createPortal(
-        <div className="fixed inset-0 flex items-center justify-center bg-black/90 z-999">
-          <div className="bg-surface border-border p-6 rounded-2xl shadow-lg flex flex-col max-w-100 justify-center gap-3">
-            <h3 className="text-foreground text-h3">{t("deleteModalTitle")}</h3>
-            <p className="text-foreground-secondary text-body">
-              {t("deleteModalText")}
-            </p>
-            <div className="flex flex-row justify-end gap-6">
-              <button
-                className="
+      {isDeleting &&
+        createPortal(
+          <div className="fixed inset-0 flex items-center justify-center bg-black/90 z-999">
+            <div className="bg-surface border-border p-6 rounded-2xl shadow-lg flex flex-col max-w-100 justify-center gap-3">
+              <h3 className="text-foreground text-h3">
+                {t("deleteModalTitle")}
+              </h3>
+              <p className="text-foreground-secondary text-body">
+                {kind === "task"
+                  ? t("deleteModalTextTask")
+                  : t("deleteModalText")}
+              </p>
+              <div className="flex flex-row justify-end gap-6">
+                <button
+                  className="
                   border border-border rounded-lg px-5 py-3 text-foreground
                   hover:bg-elevated hover:cursor-pointer
                 "
-                onClick={(e) => {
-                  setIsDeleting(false);
-                }}
-              >
-                {t("cancel")}
-              </button>
-              <button
-                className="
+                  onClick={() => setIsDeleting(false)}
+                >
+                  {t("cancel")}
+                </button>
+                <button
+                  className="
                   bg-error/80 text-foreground rounded-lg px-5 py-3
                   hover:bg-error hover:cursor-pointer
                 "
-                onClick={() => {
-                  setIsDeleting(false);
-
-                  if (isSelected) {
-                    const chatIdx = pathname.indexOf("/chat");
-                    const chatPath =
-                      chatIdx >= 0
-                        ? pathname.slice(0, chatIdx + 5)
-                        : "/chat";
-                    window.history.replaceState({}, "", chatPath);
-                    notifyChatRouteChanged();
-                  }
-
-                  void deleteChat(id);
-                }}
-              >
-                {t("delete")}
-              </button>
+                  onClick={() => {
+                    setIsDeleting(false);
+                    if (isSelected) {
+                      clearConversationRoute(pathname);
+                    }
+                    void deleteConversation(kind, id);
+                  }}
+                >
+                  {t("delete")}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -302,8 +338,9 @@ function AIChat({
 function GroupOfChats({
   title,
   chats,
-  renameChat,
-  deleteChat,
+  kind,
+  renameConversation,
+  deleteConversation,
   onClose,
 }: GroupOfChatsProps) {
   return (
@@ -314,8 +351,9 @@ function GroupOfChats({
           <AIChat
             key={chat.id}
             {...chat}
-            renameChat={renameChat}
-            deleteChat={deleteChat}
+            kind={kind}
+            renameConversation={renameConversation}
+            deleteConversation={deleteConversation}
             onClose={onClose}
           />
         ))}
@@ -324,49 +362,37 @@ function GroupOfChats({
   );
 }
 
-function groupChats(chats: Chat[]): GroupedChats {
+function groupChats(chats: Conversation[]): GroupedChats {
   const now = new Date();
-
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
   const yesterdayStart = new Date(todayStart);
   yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const todayChats: Chat[] = [];
-  const yesterdayChats: Chat[] = [];
-  const lastDaysChats: Chat[] = [];
-  const oldChats: Chat[] = [];
+  const todayChats: Conversation[] = [];
+  const yesterdayChats: Conversation[] = [];
+  const lastDaysChats: Conversation[] = [];
+  const oldChats: Conversation[] = [];
 
+  // Preserve backend order within each group
   for (const chat of chats) {
     const createdAt = new Date(chat.updatedAt);
-
-    if (createdAt >= todayStart) {
-      todayChats.push(chat);
-    } else if (createdAt >= yesterdayStart) {
-      yesterdayChats.push(chat);
-    } else if (createdAt >= sevenDaysAgo) {
-      lastDaysChats.push(chat);
-    } else {
-      oldChats.push(chat);
-    }
+    if (createdAt >= todayStart) todayChats.push(chat);
+    else if (createdAt >= yesterdayStart) yesterdayChats.push(chat);
+    else if (createdAt >= sevenDaysAgo) lastDaysChats.push(chat);
+    else oldChats.push(chat);
   }
 
-  return {
-    todayChats,
-    yesterdayChats,
-    lastDaysChats,
-    oldChats,
-  };
+  return { todayChats, yesterdayChats, lastDaysChats, oldChats };
 }
 
 export function SidebarChats({
   chats,
+  kind,
   loading = false,
-  deleteChat,
-  renameChat,
+  deleteConversation,
+  renameConversation,
   onClose,
 }: SidebarChatsProps) {
   const t = useTranslations("sidebarChats");
@@ -390,7 +416,19 @@ export function SidebarChats({
   if (!chats) {
     return (
       <div className="flex-1 overflow-y-auto px-6 pt-3 flex flex-col gap-3">
-        <p className="text-body text-error">{t("failedChats")}</p>
+        <p className="text-body text-error">
+          {kind === "task" ? t("failedTasks") : t("failedChats")}
+        </p>
+      </div>
+    );
+  }
+
+  if (chats.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto px-6 pt-3 flex flex-col gap-3">
+        <p className="text-body-sm text-foreground-muted">
+          {kind === "task" ? t("emptyTasks") : t("emptyChats")}
+        </p>
       </div>
     );
   }
@@ -404,8 +442,9 @@ export function SidebarChats({
         <GroupOfChats
           title={t("today")}
           chats={todayChats}
-          renameChat={renameChat}
-          deleteChat={deleteChat}
+          kind={kind}
+          renameConversation={renameConversation}
+          deleteConversation={deleteConversation}
           onClose={onClose}
         />
       )}
@@ -413,8 +452,9 @@ export function SidebarChats({
         <GroupOfChats
           title={t("yesterday")}
           chats={yesterdayChats}
-          renameChat={renameChat}
-          deleteChat={deleteChat}
+          kind={kind}
+          renameConversation={renameConversation}
+          deleteConversation={deleteConversation}
           onClose={onClose}
         />
       )}
@@ -422,8 +462,9 @@ export function SidebarChats({
         <GroupOfChats
           title={t("lastWeek")}
           chats={lastDaysChats}
-          renameChat={renameChat}
-          deleteChat={deleteChat}
+          kind={kind}
+          renameConversation={renameConversation}
+          deleteConversation={deleteConversation}
           onClose={onClose}
         />
       )}
@@ -431,8 +472,9 @@ export function SidebarChats({
         <GroupOfChats
           title={t("old")}
           chats={oldChats}
-          renameChat={renameChat}
-          deleteChat={deleteChat}
+          kind={kind}
+          renameConversation={renameConversation}
+          deleteConversation={deleteConversation}
           onClose={onClose}
         />
       )}

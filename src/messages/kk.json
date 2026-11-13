@@ -14,7 +14,8 @@
     "delete": "Жою",
     "deleteModalTitle": "Сенімдісіз бе?",
     "deleteModalText": "Таңдалған чат қалпына келтіру мүмкіндігінсіз біржола жойылады.",
-    "cancel": "Бас тарту"
+    "cancel": "Бас тарту",
+    "deleteModalTextTask": "Таңдалған тапсырма қалпына келтіру мүмкіндігінсіз біржола жойылады."
   },
   "sidebarHeader": {
     "newChat": "Жаңа чат"
@@ -24,7 +25,16 @@
     "today": "Бүгін",
     "yesterday": "Кеше",
     "lastWeek": "Соңғы 7 күн",
-    "old": "Ескірек"
+    "old": "Ескірек",
+    "tabChats": "Чаттар",
+    "tabTasks": "Тапсырмалар",
+    "failedTasks": "Тапсырмаларды жүктеу мүмкін болмады.",
+    "emptyChats": "Чаттар әлі жоқ.",
+    "emptyTasks": "Жоспарланған тапсырмалар әлі жоқ.",
+    "scheduleOnce": "Бір рет",
+    "scheduleRecurring": "Қайталанатын",
+    "nextRun": "Келесі: {time}",
+    "runningNow": "Орындалуда…"
   },
   "sidebarFooter": {
     "guest": "Қонақ"
@@ -80,12 +90,10 @@
     "worked": "Жұмыс істеді",
     "awaiting": "Шешіміңізді күтіп тұрмын...",
     "cancelled": "Сіз тоқтаттыңыз",
-
     "unknown": "Белгісіз",
     "reasoning": "Ойланып жатыр",
     "tool_call": "Құрал",
     "file_transcribe": "Тіркеме",
-
     "tool_call_in_progress": "«{toolName}» құралын пайдаланып жатырмын",
     "tool_call_done": "«{toolName}» құралы пайдаланылды",
     "tool_call_error": "«{toolName}» құралын пайдалану сәтсіз аяқталды",
@@ -94,66 +102,132 @@
     "tool_call_expired": "«{toolName}» құралын пайдалану уақыты аяқталды",
     "tool_call_forbidden": "{toolName}» құралына қол жеткізуге тыйым салынған",
     "unknown_tool": "белгісіз құрал",
-
-    "get_table_structure_in_progress": "Дерекқор құрылымын қарап жатырмыз...",
-    "get_table_structure_done": "Дерекқор құрылымы тексерілді",
-    "get_table_structure_error": "Дерекқор құрылымын тексеру мүмкін болмады",
-    "get_table_structure_denied": "Дерекқор құрылымына кіруге рұқсат бермедіңіз",
+    
+    "get_table_structure_in_progress": "Дерекқор құрылымын зерттеп жатырмыз...",
+    "get_table_structure_done": "Дерекқор құрылымы сәтті зерттелді",
+    "get_table_structure_error": "Дерекқор құрылымын зерттеу мүмкін болмады",
+    "get_table_structure_denied": "Сіз дерекқор құрылымына қол жеткізуге рұқсат бермедіңіз",
     "get_table_structure_forbidden": "Дерекқор құрылымына қол жеткізу бұғатталды",
+    "get_table_structure_cancelled": "Дерекқор құрылымын зерттеу тоқтатылды",
 
-    "select_in_progress": "{table} кестесінен деректерді сұрап жатырмыз...",
+    "select_in_progress": "{table} кестесіне сұрау жіберіліп жатыр...",
     "select_done": "{table} кестесінен {rows} жол алынды",
-    "select_error": "{table} кестесінен деректерді алу мүмкін болмады",
-    "select_denied": "Дерекқордан деректерді сұрауға рұқсат бермедіңіз",
-    "select_forbidden": "Дерекқордан деректерді сұрау бұғатталды",
+    "select_error": "{table} кестесіне сұрау орындау мүмкін болмады",
+    "select_denied": "Сіз дерекқорға сұрау жіберуге рұқсат бермедіңіз",
+    "select_forbidden": "Дерекқорға сұрау жіберу бұғатталды",
+    "select_cancelled": "Дерекқорға сұрау жіберу тоқтатылды",
 
-    "insert_in_progress": "{table} кестесіне деректер қосып жатырмыз...",
+    "insert_in_progress": "{table} кестесіне деректер қосылып жатыр...",
     "insert_done": "{table} кестесіне {rows} жол қосылды",
     "insert_error": "{table} кестесіне деректерді қосу мүмкін болмады",
-    "insert_denied": "Деректерді қосуға рұқсат бермедіңіз",
+    "insert_denied": "Сіз деректерді қосуға рұқсат бермедіңіз",
     "insert_forbidden": "Деректерді қосу бұғатталды",
+    "insert_cancelled": "Деректерді қосу тоқтатылды",
 
-    "update_in_progress": "{table} кестесіндегі деректерді жаңартып жатырмыз...",
+    "update_in_progress": "{table} кестесіндегі деректер жаңартылып жатыр...",
     "update_done": "{table} кестесіндегі {rows} жол жаңартылды",
     "update_error": "{table} кестесіндегі деректерді жаңарту мүмкін болмады",
-    "update_denied": "Деректерді жаңартуға рұқсат бермедіңіз",
+    "update_denied": "Сіз деректерді жаңартуға рұқсат бермедіңіз",
     "update_forbidden": "Деректерді жаңарту бұғатталды",
+    "update_cancelled": "Деректерді жаңарту тоқтатылды",
 
-    "delete_in_progress": "{table} кестесінен деректерді жойып жатырмыз...",
+    "delete_in_progress": "{table} кестесіндегі жолдар жойылып жатыр...",
     "delete_done": "{table} кестесінен {rows} жол жойылды",
-    "delete_error": "{table} кестесінен деректерді жою мүмкін болмады",
-    "delete_denied": "Деректерді жоюға рұқсат бермедіңіз",
+    "delete_error": "{table} кестесіндегі жолдарды жою мүмкін болмады",
+    "delete_denied": "Сіз деректерді жоюға рұқсат бермедіңіз",
     "delete_forbidden": "Деректерді жою бұғатталды",
+    "delete_cancelled": "Деректерді жою тоқтатылды",
 
     "web_search_in_progress": "Интернеттен ақпарат іздеп жатырмыз...",
-    "web_search_done": "Интернеттен іздеу аяқталды",
+    "web_search_done": "Интернеттен іздеу сәтті аяқталды",
     "web_search_error": "Интернеттен ақпарат іздеу мүмкін болмады",
-    "web_search_denied": "Интернеттен іздеуге рұқсат бермедіңіз",
+    "web_search_denied": "Сіз интернеттен іздеуге рұқсат бермедіңіз",
     "web_search_forbidden": "Интернеттен іздеу бұғатталды",
+    "web_search_cancelled": "Интернеттен іздеу тоқтатылды",
 
     "fetch_webpage_in_progress": "Веб-бет жүктеліп жатыр...",
-    "fetch_webpage_done": "Веб-бет жүктелді",
+    "fetch_webpage_done": "Веб-бет сәтті жүктелді",
     "fetch_webpage_error": "Веб-бетті жүктеу мүмкін болмады",
-    "fetch_webpage_denied": "Веб-бетті жүктеуге рұқсат бермедіңіз",
+    "fetch_webpage_denied": "Сіз веб-бетке қол жеткізуге рұқсат бермедіңіз",
     "fetch_webpage_forbidden": "Веб-бетке қол жеткізу бұғатталды",
+    "fetch_webpage_cancelled": "Веб-бетті жүктеу тоқтатылды",
 
     "generate_image_in_progress": "Сурет жасалып жатыр...",
-    "generate_image_done": "Сурет жасалды",
-    "generate_image_error": "Сурет жасау мүмкін болмады",
-    "generate_image_denied": "Сурет жасауға рұқсат бермедіңіз",
+    "generate_image_done": "Сурет сәтті жасалды",
+    "generate_image_error": "Суретті жасау мүмкін болмады",
+    "generate_image_denied": "Сіз сурет жасауға рұқсат бермедіңіз",
     "generate_image_forbidden": "Сурет жасау бұғатталды",
+    "generate_image_cancelled": "Сурет жасау тоқтатылды",
 
     "generate_docx_in_progress": "Word құжаты жасалып жатыр...",
-    "generate_docx_done": "Word құжаты жасалды",
+    "generate_docx_done": "Word құжаты сәтті жасалды",
     "generate_docx_error": "Word құжатын жасау мүмкін болмады",
-    "generate_docx_denied": "Құжат жасауға рұқсат бермедіңіз",
+    "generate_docx_denied": "Сіз құжат жасауға рұқсат бермедіңіз",
     "generate_docx_forbidden": "Құжат жасау бұғатталды",
+    "generate_docx_cancelled": "Word құжатын жасау тоқтатылды",
 
     "generate_excel_in_progress": "Excel кестесі жасалып жатыр...",
-    "generate_excel_done": "Excel кестесі жасалды",
+    "generate_excel_done": "Excel кестесі сәтті жасалды",
     "generate_excel_error": "Excel кестесін жасау мүмкін болмады",
-    "generate_excel_denied": "Кесте жасауға рұқсат бермедіңіз",
-    "generate_excel_forbidden": "Кесте жасау бұғатталды"
+    "generate_excel_denied": "Сіз кесте жасауға рұқсат бермедіңіз",
+    "generate_excel_forbidden": "Кесте жасау бұғатталды",
+    "generate_excel_cancelled": "Excel кестесін жасау тоқтатылды",
+
+    "send_private_alert_in_progress": "Жеке хабарлама жіберіліп жатыр...",
+    "send_private_alert_done": "Жеке хабарлама сәтті жіберілді",
+    "send_private_alert_error": "Жеке хабарламаны жіберу мүмкін болмады",
+    "send_private_alert_denied": "Сіз жеке хабарлама жіберуге рұқсат бермедіңіз",
+    "send_private_alert_forbidden": "Жеке хабарлама жіберу бұғатталды",
+    "send_private_alert_cancelled": "Жеке хабарлама жіберу тоқтатылды",
+
+    "send_global_alert_in_progress": "Барлық пайдаланушыға хабарлама жіберіліп жатыр...",
+    "send_global_alert_done": "Хабарлама барлық пайдаланушыға сәтті жіберілді",
+    "send_global_alert_error": "Барлық пайдаланушыға хабарлама жіберу мүмкін болмады",
+    "send_global_alert_denied": "Сіз жаппай хабарлама таратуға рұқсат бермедіңіз",
+    "send_global_alert_forbidden": "Жаппай хабарлама тарату бұғатталды",
+    "send_global_alert_cancelled": "Жаппай хабарлама тарату тоқтатылды",
+
+    "run_once_task_in_progress": "Бір реттік тапсырма жоспарланып жатыр...",
+    "run_once_task_done": "Бір реттік тапсырма сәтті жоспарланды",
+    "run_once_task_error": "Бір реттік тапсырманы жоспарлау мүмкін болмады",
+    "run_once_task_denied": "Сіз бір реттік тапсырма жасауға рұқсат бермедіңіз",
+    "run_once_task_forbidden": "Бір реттік тапсырма жасау бұғатталды",
+    "run_once_task_cancelled": "Бір реттік тапсырманы жоспарлау тоқтатылды",
+
+    "run_recurring_task_in_progress": "Қайталанатын тапсырма жоспарланып жатыр...",
+    "run_recurring_task_done": "Қайталанатын тапсырма сәтті жоспарланды",
+    "run_recurring_task_error": "Қайталанатын тапсырманы жоспарлау мүмкін болмады",
+    "run_recurring_task_denied": "Сіз қайталанатын тапсырма жасауға рұқсат бермедіңіз",
+    "run_recurring_task_forbidden": "Қайталанатын тапсырма жасау бұғатталды",
+    "run_recurring_task_cancelled": "Қайталанатын тапсырманы жоспарлау тоқтатылды",
+
+    "execute_code_in_progress": "Код орындалып жатыр...",
+    "execute_code_done": "Код сәтті орындалды",
+    "execute_code_error": "Кодты орындау мүмкін болмады",
+    "execute_code_denied": "Сіз кодты орындауға рұқсат бермедіңіз",
+    "execute_code_forbidden": "Кодты орындау бұғатталды",
+    "execute_code_cancelled": "Кодты орындау тоқтатылды",
+
+    "get_files_by_id_in_progress": "Чаттағы файлдар алынып жатыр...",
+    "get_files_by_id_done": "Файлдар сәтті алынды",
+    "get_files_by_id_error": "Чаттағы файлдарды алу мүмкін болмады",
+    "get_files_by_id_denied": "Сіз сұралған файлдарға қол жеткізуге рұқсат бермедіңіз",
+    "get_files_by_id_forbidden": "Сұралған файлдарға қол жеткізу бұғатталды",
+    "get_files_by_id_cancelled": "Файлдарды алу тоқтатылды",
+
+    "http_client_in_progress": "HTTP сұрауы жіберіліп жатыр...",
+    "http_client_done": "HTTP сұрауы сәтті орындалды",
+    "http_client_error": "HTTP сұрауын орындау мүмкін болмады",
+    "http_client_denied": "Сіз HTTP сұрауын орындауға рұқсат бермедіңіз",
+    "http_client_forbidden": "HTTP сұрауын орындау бұғатталды",
+    "http_client_cancelled": "HTTP сұрауын орындау тоқтатылды",
+
+    "get_tools_in_progress": "Қосымша құралдар алынып жатыр...",
+    "get_tools_done": "Қосымша құралдар сәтті алынды",
+    "get_tools_error": "Қосымша құралдарды алу мүмкін болмады",
+    "get_tools_denied": "Сіз қосымша құралдарды алуға рұқсат бермедіңіз",
+    "get_tools_forbidden": "Қосымша құралдарды алу бұғатталды",
+    "get_tools_cancelled": "Қосымша құралдарды алу тоқтатылды"
   },
   "stepOverlay": {
     "emptyStep": "Қазір бұл жерде ештеңе жоқ.",
@@ -653,5 +727,11 @@
     "title": "Серверге қосылу мүмкін болмады",
     "text": "Интернет байланысын тексеріп, қайтадан көріңіз.",
     "button": "Қайталап көру"
+  },
+  "taskPanel": {
+    "readOnlyHint": "Бұл жоспарланған тапсырма. Хабарлама жіберу қолжетімсіз.",
+    "runningHint": "Қазір орындалу жүріп жатыр.",
+    "cancelTask": "Орындауды тоқтату",
+    "cancelling": "Тоқтатылуда…"
   }
 }

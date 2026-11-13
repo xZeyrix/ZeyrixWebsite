@@ -1,16 +1,28 @@
+"use client";
+
 import { SidebarHeader } from "./SidebarHeader";
-import { SidebarChats } from "./SidebarChats";
+import { SidebarConversations } from "./SidebarConversations";
 import { SidebarFooter } from "./SidebarFooter";
-import { Chat } from "@/src/types/chat";
+import { Conversation, ConversationKind } from "@/src/types/chat";
 
 type SidebarProps = {
   open: boolean;
   onClose: () => void;
   onExited: () => void;
-  chats: Chat[];
+  chats: Conversation[];
+  tasks: Conversation[];
   loading?: boolean;
-  renameChat: (chatId: string, newTitle: string) => Promise<undefined>;
-  deleteChat: (chatId: string) => Promise<undefined>;
+  renameConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+    newTitle: string,
+  ) => Promise<undefined>;
+  deleteConversation: (
+    kind: ConversationKind,
+    conversationId: string,
+  ) => Promise<undefined>;
+  sidebarView: ConversationKind;
+  onSidebarViewChange: (view: ConversationKind) => void;
 };
 
 export function SidebarMobile({
@@ -18,9 +30,12 @@ export function SidebarMobile({
   onClose,
   onExited,
   chats,
+  tasks,
   loading,
-  renameChat,
-  deleteChat,
+  renameConversation,
+  deleteConversation,
+  sidebarView,
+  onSidebarViewChange,
 }: SidebarProps) {
   return (
     <div
@@ -29,7 +44,6 @@ export function SidebarMobile({
         if (event.target !== event.currentTarget || open) {
           return;
         }
-
         onExited();
       }}
     >
@@ -46,11 +60,14 @@ export function SidebarMobile({
       >
         <SidebarHeader onClose={onClose} />
         <div className="flex-1 flex flex-col min-h-0">
-          <SidebarChats
+          <SidebarConversations
+            view={sidebarView}
+            onViewChange={onSidebarViewChange}
             chats={chats}
+            tasks={tasks}
             loading={loading}
-            renameChat={renameChat}
-            deleteChat={deleteChat}
+            renameConversation={renameConversation}
+            deleteConversation={deleteConversation}
             onClose={onClose}
           />
           <SidebarFooter />
