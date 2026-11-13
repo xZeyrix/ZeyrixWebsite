@@ -30,7 +30,11 @@
     "tabTasks": "Тапсырмалар",
     "failedTasks": "Тапсырмаларды жүктеу мүмкін болмады.",
     "emptyChats": "Чаттар әлі жоқ.",
-    "emptyTasks": "Жоспарланған тапсырмалар әлі жоқ."
+    "emptyTasks": "Жоспарланған тапсырмалар әлі жоқ.",
+    "scheduleOnce": "Бір рет",
+    "scheduleRecurring": "Қайталанатын",
+    "nextRun": "Келесі: {time}",
+    "runningNow": "Орындалуда…"
   },
   "sidebarFooter": {
     "guest": "Қонақ"

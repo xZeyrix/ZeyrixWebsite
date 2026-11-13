@@ -30,7 +30,11 @@
     "tabTasks": "Tasks",
     "failedTasks": "Failed to get the tasks.",
     "emptyChats": "No chats yet.",
-    "emptyTasks": "No scheduled tasks yet."
+    "emptyTasks": "No scheduled tasks yet.",
+    "scheduleOnce": "Once",
+    "scheduleRecurring": "Recurring",
+    "nextRun": "Next: {time}",
+    "runningNow": "Running…"
   },
   "sidebarFooter": {
     "guest": "Guest"

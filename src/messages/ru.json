@@ -30,7 +30,11 @@
     "tabTasks": "Задачи",
     "failedTasks": "Не удалось загрузить задачи.",
     "emptyChats": "Чатов пока нет.",
-    "emptyTasks": "Запланированных задач пока нет."
+    "emptyTasks": "Запланированных задач пока нет.",
+    "scheduleOnce": "Разово",
+    "scheduleRecurring": "Повтор",
+    "nextRun": "След.: {time}",
+    "runningNow": "Выполняется…"
   },
   "sidebarFooter": {
     "guest": "Гость"
