@@ -349,8 +349,15 @@ function mergeAttachments(
   return Array.from(map.values());
 }
 
+export type SubscribeResult =
+  | "already_streaming"
+  | "connected"
+  | "no_task"
+  | "error"
+  | "aborted";
+
 export type SubscribeToChatTaskOptions = {
-  onEnded?: (conversationId: string) => void;
+  onEnded?: (conversationId: string, result: SubscribeResult) => void;
 };
 
 function objectsPath(kind: ConversationKind, conversationId: string) {
@@ -358,12 +365,39 @@ function objectsPath(kind: ConversationKind, conversationId: string) {
   return `/api/conversations/${segment}/${conversationId}/objects`;
 }
 
+function isNoActiveTaskError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  let msg = err.message;
+  try {
+    const parsed = JSON.parse(err.message) as {
+      message?: string;
+      detail?: string;
+      user_detail?: string;
+      code?: string;
+    };
+    msg = [parsed.message, parsed.detail, parsed.user_detail, parsed.code]
+      .filter(Boolean)
+      .join(" ");
+  } catch {
+    // plain text
+  }
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("no task") ||
+    lower.includes("don't have an active task") ||
+    lower.includes("do not have an active task") ||
+    lower.includes("no longer available") ||
+    lower.includes("invalid conversation reference") ||
+    lower.includes("not available")
+  );
+}
+
 export async function subscribeToChatTask(
   conversationId: string,
   kind: ConversationKind = "chat",
   options: SubscribeToChatTaskOptions = {},
-): Promise<void> {
-  if (isChatStreaming(conversationId)) return;
+): Promise<SubscribeResult> {
+  if (isChatStreaming(conversationId)) return "already_streaming";
 
   const controller = new AbortController();
 
@@ -412,29 +446,40 @@ export async function subscribeToChatTask(
     });
   };
 
+  let result: SubscribeResult = "connected";
+  let didConnect = false;
+
   try {
     await streamAI(
       apiUrl(`/api/conversations/subscribe_to_task`),
       { kind, conversationId },
-      (event) => applyStreamEvent(event, updateLastAssistant),
+      (event) => {
+        if (!didConnect) {
+          didConnect = true;
+          notifyTaskRunning(conversationId, true);
+        }
+        applyStreamEvent(event, updateLastAssistant);
+      },
       controller.signal,
     );
   } catch (err) {
     if (isAbortError(err)) {
-      return;
+      result = "aborted";
+    } else {
+      result = isNoActiveTaskError(err) ? "no_task" : "error";
+      updateChatStreamMessages(conversationId, (prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (
+          lastMsg?.role === "assistant" &&
+          lastMsg.status === "pending" &&
+          !lastMsg.text &&
+          !(lastMsg.steps && lastMsg.steps.length > 0)
+        ) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
     }
-    updateChatStreamMessages(conversationId, (prev) => {
-      const lastMsg = prev[prev.length - 1];
-      if (
-        lastMsg?.role === "assistant" &&
-        lastMsg.status === "pending" &&
-        !lastMsg.text &&
-        !(lastMsg.steps && lastMsg.steps.length > 0)
-      ) {
-        return prev.slice(0, -1);
-      }
-      return prev;
-    });
   } finally {
     const live = getStreamMessages(conversationId);
     if (live?.length) {
@@ -442,9 +487,13 @@ export async function subscribeToChatTask(
     }
 
     endChatStream(conversationId);
-    notifyTaskRunning(conversationId, false);
-    options.onEnded?.(conversationId);
+    if (didConnect) {
+      notifyTaskRunning(conversationId, false);
+    }
+    options.onEnded?.(conversationId, result);
   }
+
+  return result;
 }
 
 export async function cancelChatTask(

@@ -129,11 +129,17 @@ export type GeneratedFile = {
 /** Unified conversation item (chat or scheduled task) */
 export type ConversationKind = "chat" | "task";
 
+export type ScheduleType = "once" | "recurring";
+
 export type Conversation = {
   id: string;
   title: string;
   updatedAt: string;
   isTaskRunning: boolean;
+  /** Present for scheduled tasks */
+  scheduleType?: ScheduleType;
+  /** UTC ISO datetime of the next planned run (scheduled tasks) */
+  nextRunAt?: string | null;
 };
 
 /** @deprecated Use Conversation */

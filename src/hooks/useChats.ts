@@ -1,13 +1,14 @@
 import {
-  Chat,
   Conversation,
   ConversationKind,
   ChatsAndScheduledTasks,
+  ScheduleType,
 } from "../types/chat";
 import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   Dispatch,
   SetStateAction,
 } from "react";
@@ -24,13 +25,27 @@ import {
 } from "../lib/chatTaskStream";
 
 function normalizeConversation(raw: any): Conversation {
+  const scheduleRaw = raw.scheduleType ?? raw.schedule_type ?? undefined;
+  const scheduleType: ScheduleType | undefined =
+    scheduleRaw === "once" || scheduleRaw === "recurring"
+      ? scheduleRaw
+      : undefined;
+
+  const nextRunRaw = raw.nextRunAt ?? raw.next_run_at;
+  const nextRunAt =
+    nextRunRaw === null || nextRunRaw === undefined
+      ? nextRunRaw === null
+        ? null
+        : undefined
+      : String(nextRunRaw);
+
   return {
     id: String(raw.id),
     title: raw.title ?? "",
     updatedAt: raw.updatedAt ?? raw.updated_at ?? new Date().toISOString(),
-    isTaskRunning: Boolean(
-      raw.isTaskRunning ?? raw.is_task_running ?? false,
-    ),
+    isTaskRunning: Boolean(raw.isTaskRunning ?? raw.is_task_running ?? false),
+    scheduleType,
+    nextRunAt,
   };
 }
 
@@ -41,6 +56,9 @@ export function useChats() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const { state, auth } = useConnection();
+
+  const tasksRef = useRef<Conversation[]>([]);
+  tasksRef.current = tasks;
 
   const markTaskRunning = useCallback(
     (conversationId: string, running: boolean) => {
@@ -57,6 +75,20 @@ export function useChats() {
     },
     [],
   );
+
+  const refreshTasks = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/conversations/", {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data: ChatsAndScheduledTasks = await res.json();
+      setTasks((data.tasks ?? []).map(normalizeConversation));
+      setChats((data.chats ?? []).map(normalizeConversation));
+    } catch {
+      // ignore background refresh errors
+    }
+  }, []);
 
   useEffect(() => {
     return subscribeTaskRunningFlags(markTaskRunning);
@@ -92,7 +124,12 @@ export function useChats() {
           .map((c) => ({ id: c.id, kind: "task" as const }));
 
         resubscribeRunningTasks([...runningChatIds, ...runningTaskIds], {
-          onEnded: (conversationId) => markTaskRunning(conversationId, false),
+          onEnded: (conversationId) => {
+            markTaskRunning(conversationId, false);
+            if (runningTaskIds.some((t) => t.id === conversationId)) {
+              void refreshTasks();
+            }
+          },
         });
       } catch (err) {
         setError(
@@ -104,7 +141,7 @@ export function useChats() {
     }
 
     loadConversations();
-  }, [state, auth, markTaskRunning]);
+  }, [state, auth, markTaskRunning, refreshTasks]);
 
   useEffect(() => {
     function onVisibility() {
@@ -117,8 +154,10 @@ export function useChats() {
         for (const item of items) {
           if (item.isTaskRunning && !isChatStreaming(item.id)) {
             void subscribeToChatTask(item.id, kind, {
-              onEnded: (conversationId) =>
-                markTaskRunning(conversationId, false),
+              onEnded: (conversationId) => {
+                markTaskRunning(conversationId, false);
+                if (kind === "task") void refreshTasks();
+              },
             });
           }
         }
@@ -137,7 +176,7 @@ export function useChats() {
     document.addEventListener("visibilitychange", onVisibility);
     return () =>
       document.removeEventListener("visibilitychange", onVisibility);
-  }, [markTaskRunning]);
+  }, [markTaskRunning, refreshTasks]);
 
   const createChat = useCallback(
     async (
@@ -278,7 +317,6 @@ export function useChats() {
     [],
   );
 
-  // Backwards-compatible aliases used by existing call sites during migration
   const renameChat = useCallback(
     (chatId: string, newTitle: string) =>
       renameConversation("chat", chatId, newTitle),
@@ -300,5 +338,7 @@ export function useChats() {
     loading,
     creating,
     error,
+    refreshTasks,
+    markTaskRunning,
   };
 }

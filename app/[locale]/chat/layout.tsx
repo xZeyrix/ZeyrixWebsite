@@ -29,6 +29,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     deleteConversation,
     loading,
     creating,
+    refreshTasks,
   } = useChats();
   const [isGetAccessModalOpen, setIsGetAccessModalOpen] = useState(false);
   const [sidebarView, setSidebarView] = useState<ConversationKind>("chat");
@@ -160,6 +161,10 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                   conversationId={route?.id}
                   conversationKind={route?.kind ?? "chat"}
                   isTaskRunning={currentConversation?.isTaskRunning}
+                  nextRunAt={currentConversation?.nextRunAt}
+                  onTaskStreamEnded={() => {
+                    void refreshTasks();
+                  }}
                   createChat={createChat}
                   creatingChat={creating}
                   openContactModal={() => setIsGetAccessModalOpen(true)}

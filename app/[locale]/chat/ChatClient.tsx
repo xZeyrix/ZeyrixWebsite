@@ -11,11 +11,14 @@ import {
 } from "@/src/components/modals/accessInfo";
 import { useConnection } from "@/src/components/auth/ConnectionContext";
 import { ConversationKind } from "@/src/types/chat";
+import { useOpenTaskPoll } from "@/src/hooks/useOpenTaskPoll";
 
 export default function ChatClient({
   conversationId,
   conversationKind = "chat",
   isTaskRunning,
+  nextRunAt,
+  onTaskStreamEnded,
   createChat,
   openContactModal,
   creatingChat,
@@ -23,6 +26,8 @@ export default function ChatClient({
   conversationId?: string;
   conversationKind?: ConversationKind;
   isTaskRunning?: boolean;
+  nextRunAt?: string | null;
+  onTaskStreamEnded?: () => void;
   createChat: (
     userPrompt: string,
     setComposeError: Dispatch<
@@ -52,6 +57,15 @@ export default function ChatClient({
     stopGeneration,
     setShouldMessagesLoad,
   } = useChat(setAccessInfoModalState, conversationId, conversationKind);
+
+  useOpenTaskPoll({
+    taskId: conversationId,
+    nextRunAt,
+    isTaskRunning,
+    messages,
+    enabled: conversationKind === "task" && Boolean(conversationId),
+    onStreamEnded: onTaskStreamEnded,
+  });
 
   const isToolRequestPending = messages.some(
     (message) =>
