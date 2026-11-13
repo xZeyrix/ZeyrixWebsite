@@ -61,8 +61,11 @@ export default function ChatClient({
   useOpenTaskPoll({
     taskId: conversationId,
     nextRunAt,
-    isTaskRunning,
     messages,
+    // Only poll after objects/executions for THIS task finished loading.
+    // Polling while loading=true races an empty message list and falsely
+    // treats the task as "not yet executed".
+    messagesReady: Boolean(conversationId) && !loading,
     enabled: conversationKind === "task" && Boolean(conversationId),
     onStreamEnded: onTaskStreamEnded,
   });

@@ -76,7 +76,11 @@ export function useChats() {
     [],
   );
 
+  const refreshInFlightRef = useRef(false);
   const refreshTasks = useCallback(async () => {
+    // Coalesce concurrent refresh calls (e.g. two streams ending on task switch)
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     try {
       const res = await apiFetch("/api/conversations/", {
         credentials: "include",
@@ -87,6 +91,8 @@ export function useChats() {
       setChats((data.chats ?? []).map(normalizeConversation));
     } catch {
       // ignore background refresh errors
+    } finally {
+      refreshInFlightRef.current = false;
     }
   }, []);
 

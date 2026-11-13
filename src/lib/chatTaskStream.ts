@@ -354,10 +354,15 @@ export type SubscribeResult =
   | "connected"
   | "no_task"
   | "error"
-  | "aborted";
+  | "aborted"
+  | "already_executed";
 
 export type SubscribeToChatTaskOptions = {
   onEnded?: (conversationId: string, result: SubscribeResult) => void;
+  /** External abort (e.g. user switched tasks) */
+  signal?: AbortSignal;
+  /** If set, skip streaming when objects already contain an execution at/after this time */
+  nextRunAt?: string | null;
 };
 
 function objectsPath(kind: ConversationKind, conversationId: string) {
@@ -400,6 +405,15 @@ export async function subscribeToChatTask(
   if (isChatStreaming(conversationId)) return "already_streaming";
 
   const controller = new AbortController();
+  const onExternalAbort = () => {
+    controller.abort(options.signal?.reason);
+  };
+  if (options.signal) {
+    if (options.signal.aborted) {
+      return "aborted";
+    }
+    options.signal.addEventListener("abort", onExternalAbort);
+  }
 
   let initialMessages: Message[] = [];
   try {
@@ -411,8 +425,25 @@ export async function subscribeToChatTask(
       const data = await res.json();
       initialMessages = (Array.isArray(data) ? data : []).map(normalizeMessage);
     }
-  } catch {
+  } catch (err) {
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    if (isAbortError(err)) return "aborted";
     // ignore preload errors; stream will still start
+  }
+
+  // If this scheduled run already has an execution, do not open a stream.
+  if (options.nextRunAt) {
+    const runAtMs = new Date(options.nextRunAt).getTime();
+    if (!Number.isNaN(runAtMs)) {
+      const alreadyExecuted = initialMessages.some((m) => {
+        const created = new Date(m.createdAt).getTime();
+        return !Number.isNaN(created) && created >= runAtMs;
+      });
+      if (alreadyExecuted) {
+        options.signal?.removeEventListener("abort", onExternalAbort);
+        return "already_executed";
+      }
+    }
   }
 
   const last = initialMessages[initialMessages.length - 1];
@@ -481,6 +512,8 @@ export async function subscribeToChatTask(
       });
     }
   } finally {
+    options.signal?.removeEventListener("abort", onExternalAbort);
+
     const live = getStreamMessages(conversationId);
     if (live?.length) {
       setLastStreamSnapshot(conversationId, live);
@@ -490,7 +523,10 @@ export async function subscribeToChatTask(
     if (didConnect) {
       notifyTaskRunning(conversationId, false);
     }
-    options.onEnded?.(conversationId, result);
+    // Do not notify parent about aborted attempts (task switch / unmount)
+    if (result !== "aborted") {
+      options.onEnded?.(conversationId, result);
+    }
   }
 
   return result;
