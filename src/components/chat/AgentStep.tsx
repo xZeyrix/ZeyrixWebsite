@@ -1,6 +1,4 @@
-import AwaitingIcon from "@/src/icons/time.svg";
 import ToolIcon from "@/src/icons/tool.svg";
-import ArrowIcon from "@/src/icons/arrowBasic.svg";
 import CloseIcon from "@/src/icons/close.svg";
 import WarningIcon from "@/src/icons/warning.svg";
 import SearchIcon from "@/src/icons/search.svg";
@@ -8,6 +6,14 @@ import DatabaseIcon from "@/src/icons/database.svg";
 import GenImageIcon from "@/src/icons/gen_image.svg";
 import GenDocxIcon from "@/src/icons/gen_docx.svg";
 import GenExcelIcon from "@/src/icons/gen_excel.svg";
+import SendPrivateAlertIcon from "@/src/icons/message.svg";
+import SendGlobalAlertIcon from "@/src/icons/megaphone.svg";
+import RunOnceTaskIcon from "@/src/icons/calendar-clock.svg";
+import RunRecurringTaskIcon from "@/src/icons/repeat.svg";
+import ExecuteCodeIcon from "@/src/icons/terminal.svg";
+import GetFilesIcon from "@/src/icons/files.svg";
+import HttpClientIcon from "@/src/icons/globus.svg";
+import GetToolsIcon from "@/src/icons/blocks.svg";
 
 import { AgentStep, ToolDetails, StepKind, StepStatus, FailedGeneration } from "@/src/types/chat";
 import { useStep } from "@/src/hooks/useStep";
@@ -209,7 +215,7 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
   return (
     <>
     <button
-      className={`flex gap-2 items-start ${colorClass} ${isInteractive && 'hover:cursor-pointer group'} max-w-70`}
+      className={`flex gap-2 items-start ${colorClass} ${isInteractive && 'hover:cursor-pointer group'} max-w-100`}
       onClick={() => isInteractive && setIsOverlayOpen((prev) => !prev)}
     >
       <div className="relative flex w-3 shrink-0 flex-col items-center self-stretch">
@@ -224,6 +230,22 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
             <GenDocxIcon className="size-4" />
           ) : toolName === "generate_excel" ? (
             <GenExcelIcon className="size-4" />
+          ) : toolName === "send_private_alert" ? (
+            <SendPrivateAlertIcon className="size-4" />
+          ) : toolName === "send_global_alert" ? (
+            <SendGlobalAlertIcon className="size-4" />
+          ) : toolName === "run_once_task" ? (
+            <RunOnceTaskIcon className="size-4" />
+          ) : toolName === "run_recurring_task" ? (
+            <RunRecurringTaskIcon className="size-4" />
+          ) : toolName === "execute_code" ? (
+            <ExecuteCodeIcon className="size-4" />
+          ) : toolName === "get_files_by_id" ? (
+            <GetFilesIcon className="size-4" />
+          ) : toolName === "http_client" ? (
+            <HttpClientIcon className="size-4" />
+          ) : toolName === "get_tools" ? (
+            <GetToolsIcon className="size-4" />
           ) : (
             <ToolIcon className="size-3" />
           )}
@@ -240,10 +262,6 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
         >
           {localizedLabel()}
         </p>
-        
-        <div className={`pb-2 ${!isInteractive && "hidden"}`}>
-          <ArrowIcon className="size-2 shrink-0" />
-        </div>
       </div>
     </button>
 
