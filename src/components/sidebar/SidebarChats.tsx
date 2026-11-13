@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import RenameIcon from "@/src/icons/rename.svg";
 import DeleteIcon from "@/src/icons/delete.svg";
 import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { format } from "date-fns";
+import { getDateFnsLocale } from "@/src/lib/date-fns-locale";
 import { createPortal } from "react-dom";
 import {
   clearConversationRoute,
@@ -48,16 +50,42 @@ type GroupedChats = {
 
 type AIChatProps = Conversation & GlobalProps;
 
+function formatNextRunAt(nextRunAt: string, locale: string): string {
+  try {
+    const date = new Date(nextRunAt);
+    if (Number.isNaN(date.getTime())) return nextRunAt;
+    const dfLocale = getDateFnsLocale(locale);
+    const now = new Date();
+    const isSameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+    if (isSameDay) {
+      return format(date, "HH:mm", { locale: dfLocale });
+    }
+    const isSameYear = date.getFullYear() === now.getFullYear();
+    return format(date, isSameYear ? "d MMM HH:mm" : "d MMM yyyy HH:mm", {
+      locale: dfLocale,
+    });
+  } catch {
+    return nextRunAt;
+  }
+}
+
 function AIChat({
   id,
   title,
   isTaskRunning,
+  scheduleType,
+  nextRunAt,
   kind,
   renameConversation,
   deleteConversation,
   onClose,
 }: AIChatProps) {
   const t = useTranslations("chat");
+  const tSidebar = useTranslations("sidebarChats");
+  const locale = useLocale();
   const pathname = usePathname();
   const route = useChatRoute(pathname);
   const isSelected = route?.id === id && route.kind === kind;
@@ -157,19 +185,41 @@ function AIChat({
             className="text-body-sm text-foreground-secondary w-full border-none outline-none rounded-lg py-[3.5px]"
           />
         ) : (
-          <p className="truncate text-body-sm text-foreground-secondary flex items-center gap-2 min-w-0">
-            {isGenerating && !isSelected && (
-              <span
-                className="relative flex size-2 shrink-0"
-                title="Generating"
-                aria-label="Generating"
-              >
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-primary" />
-              </span>
+          <div className="flex flex-col min-w-0 flex-1 gap-0.5 pr-1">
+            <p className="truncate text-body-sm text-foreground-secondary flex items-center gap-2 min-w-0">
+              {isGenerating && !isSelected && (
+                <span
+                  className="relative flex size-2 shrink-0"
+                  title="Generating"
+                  aria-label="Generating"
+                >
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                </span>
+              )}
+              <span className="truncate">{chatTitle}</span>
+            </p>
+            {kind === "task" && (scheduleType || nextRunAt) && (
+              <p className="truncate text-caption text-foreground-muted pl-0 flex items-center gap-1.5 min-w-0">
+                {scheduleType && (
+                  <span className="shrink-0 rounded bg-surface px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-foreground-muted">
+                    {scheduleType === "recurring"
+                      ? tSidebar("scheduleRecurring")
+                      : tSidebar("scheduleOnce")}
+                  </span>
+                )}
+                {nextRunAt && (
+                  <span className="truncate">
+                    {isGenerating
+                      ? tSidebar("runningNow")
+                      : tSidebar("nextRun", {
+                          time: formatNextRunAt(nextRunAt, locale),
+                        })}
+                  </span>
+                )}
+              </p>
             )}
-            <span className="truncate">{chatTitle}</span>
-          </p>
+          </div>
         )}
 
         <span
@@ -325,6 +375,7 @@ function groupChats(chats: Conversation[]): GroupedChats {
   const lastDaysChats: Conversation[] = [];
   const oldChats: Conversation[] = [];
 
+  // Preserve backend order within each group
   for (const chat of chats) {
     const createdAt = new Date(chat.updatedAt);
     if (createdAt >= todayStart) todayChats.push(chat);
