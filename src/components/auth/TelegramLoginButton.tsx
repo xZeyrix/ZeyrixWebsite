@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Script from "next/script";
 import TelegramIcon from "@/src/icons/telegram.svg";
 import { apiFetch } from "@/src/lib/api";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 declare global {
   interface Window {
@@ -67,6 +67,14 @@ function clearTelegramAuthHash() {
   window.history.replaceState(null, "", `${pathname}${search}`);
 }
 
+function getClientTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 export default function TelegramLoginButton({
   onSuccess,
   onError,
@@ -75,6 +83,7 @@ export default function TelegramLoginButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useTranslations("login");
+  const locale = useLocale();
 
   async function handleAuth(user: TelegramUser | false) {
     if (!user) {
@@ -90,7 +99,11 @@ export default function TelegramLoginButton({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(user),
+        body: JSON.stringify({
+          ...user,
+          locale,
+          timezone: getClientTimezone(),
+        }),
       });
 
       if (res.ok) {
@@ -117,6 +130,7 @@ export default function TelegramLoginButton({
     setLoading(true);
     setError(null);
     void handleAuth(user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startLoginViaRedirect(botId: string) {

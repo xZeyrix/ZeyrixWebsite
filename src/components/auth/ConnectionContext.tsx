@@ -9,9 +9,11 @@ export type AuthState = "checking" | "needs_auth" | "authenticated" | "error";
 interface ConnectionContextValue {
   state: ConnectionState;
   access: Access;
+  username: string | null;
   auth: AuthState;
   setState: (s: ConnectionState) => void;
   setAccess: (s: Access) => void;
+  setUsername: (s: string | null) => void;
   setAuth: (s: AuthState) => void;
   retryAuth: () => void;
   authRetryKey: number;
@@ -24,6 +26,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [access, setAccess] = useState<Access>("loading");
   const [auth, setAuth] = useState<AuthState>("checking");
   const [authRetryKey, setAuthRetryKey] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
 
   function retryAuth() {
     setAuth("checking");
@@ -35,9 +38,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         access,
+        username,
         auth,
         setState,
         setAccess,
+        setUsername,
         setAuth,
         retryAuth,
         authRetryKey,

@@ -37,7 +37,9 @@
     "runningNow": "Выполняется…"
   },
   "sidebarFooter": {
-    "guest": "Гость"
+    "guest": "Гость",
+    "logout": "Выйти",
+    "loggingOut": "Выход…"
   },
   "composeArea": {
     "connectingPlaceholder": "Подключение...",

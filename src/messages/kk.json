@@ -37,7 +37,9 @@
     "runningNow": "Орындалуда…"
   },
   "sidebarFooter": {
-    "guest": "Қонақ"
+    "guest": "Қонақ",
+    "logout": "Шығу",
+    "loggingOut": "Шығу…"
   },
   "composeArea": {
     "connectingPlaceholder": "Қосылуда...",

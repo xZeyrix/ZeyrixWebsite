@@ -5,7 +5,7 @@ import { useConnection } from "./ConnectionContext";
 import { apiFetch } from "@/src/lib/api";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
-  const { setState, setAccess, setAuth, authRetryKey } = useConnection();
+  const { setState, setAccess, setUsername, setAuth, authRetryKey } = useConnection();
 
   useEffect(() => {
     let active = true;
@@ -20,7 +20,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           throw new Error(`Auth status returned ${response.status}`);
         }
 
-        const data: { authenticated: boolean; access: boolean } =
+        const data: { authenticated: boolean; access: boolean; username: string | null } =
           await response.json();
 
         if (!active) return;
@@ -28,6 +28,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         setState("ready");
         setAuth(data.authenticated ? "authenticated" : "needs_auth");
         setAccess(data.access ? "granted" : "disabled");
+        setUsername(data.username);
       } catch {
         if (!active) return;
         setState("unreachable");

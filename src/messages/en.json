@@ -37,7 +37,9 @@
     "runningNow": "Running…"
   },
   "sidebarFooter": {
-    "guest": "Guest"
+    "guest": "Guest",
+    "logout": "Log out",
+    "loggingOut": "Logging out…"
   },
   "composeArea": {
     "connectingPlaceholder": "Connecting...",
