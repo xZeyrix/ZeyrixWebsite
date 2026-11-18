@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { setRequestLocale } from "next-intl/server";
-import { HeaderMobile } from "@/src/components/header/mobile";
-import { FooterMobile } from "@/src/components/footer/mobile";
+import { Header } from "@/src/components/header/main";
+import { Footer } from "@/src/components/footer/main";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
 import LegalSectionNav from "./LegalSectionNav";
 
@@ -17,11 +17,11 @@ export default async function LegalLayout({
 
   return (
     <div className="legal-page">
-      <HeaderMobile />
+      <Header />
       <LegalSectionNav />
       <main className="legal-content">{children}</main>
       <OpenAgentButton />
-      <FooterMobile />
+      <Footer />
     </div>
   );
 }
