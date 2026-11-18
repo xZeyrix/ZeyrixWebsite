@@ -1018,6 +1018,35 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
   const stopGeneration = useCallback(() => {
     if (!chatId) return;
+
+    const stoppedPayload = JSON.stringify({
+      error_code: "STOPPED_BY_USER",
+      status_code: 499,
+    });
+
+    const markStopped = (prev: Message[]) => {
+      const index = prev.findLastIndex(
+        (m) =>
+          m.role === "assistant" &&
+          (m.status === "pending" || m.status === "approval_required"),
+      );
+      if (index === -1) return prev;
+      return prev.map((m, i) =>
+        i === index
+          ? {
+              ...m,
+              status: "error" as const,
+              text: stoppedPayload,
+              streamingReasoning: undefined,
+            }
+          : m,
+      );
+    };
+
+    // Local UI update immediately (also covers approval_required with no live stream)
+    setMessages(markStopped);
+    setOptimisticMessages(chatId, markStopped(messagesRef.current));
+
     void import("../lib/chatTaskStream").then(({ cancelChatTask }) =>
       cancelChatTask(chatId, kind),
     );

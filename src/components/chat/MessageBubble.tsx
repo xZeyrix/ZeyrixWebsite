@@ -190,8 +190,8 @@ function adaptText(text: string, status: string, t: _Translator<Record<string, a
     const contactUrl = generateContactUrl(errorCode, statusCode, requestId);
 
     const systemMessage = () => {
-      if (errorCode === "CLIENT_DISCONNECTED") {
-        return t("clientDisconnected");
+      if (errorCode === "STOPPED_BY_USER" || errorCode === "CLIENT_DISCONNECTED") {
+        return t("stoppedByUser");
       } else {
         return t("unknownError", {
           "errorCode": errorCode,
@@ -316,8 +316,8 @@ export function MessageBubble({
         <div className="flex justify-start min-w-0">
           <div className={`
             py-3 rounded-t-[20px] rounded-br-[20px] rounded-bl-sm w-full flex flex-col gap-1 min-w-0
-            ${status === "error" && "border pl-5"}
-            ${status === "error" && errorCode === "CLIENT_DISCONNECTED" ? "border-info" : "border-error"}
+            ${status === "error" && errorCode !== "STOPPED_BY_USER" && errorCode !== "CLIENT_DISCONNECTED" && "border border-error pl-5"}
+            ${status === "error" && (errorCode === "STOPPED_BY_USER" || errorCode === "CLIENT_DISCONNECTED") && "border border-border pl-5"}
           `}>
             <div className="flex flex-col gap-2">
               <div

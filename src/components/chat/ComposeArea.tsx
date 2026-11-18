@@ -381,7 +381,7 @@ export function ComposeArea({
                   <MicroIcon className={`${canInteract ? "text-foreground-secondary" : "text-foreground-muted/90"} size-5`} />
                 </button>
                 
-                {!sending && !creatingChat && canSend ? (
+                {!sending && !isToolRequestPending && !creatingChat && canSend ? (
                   <button
                     disabled={!canSend}
                     className={`
@@ -393,7 +393,7 @@ export function ComposeArea({
                   >
                     <SendIcon className="size-3 text-primary-surface" />
                   </button>
-                ) : !sending && !creatingChat && !canSend && chatId && !isNewChat ? (
+                ) : !sending && !isToolRequestPending && !creatingChat && !canSend && chatId && !isNewChat ? (
                   <button
                     type="button"
                     disabled={!canInteract || access !== "granted"}
@@ -420,7 +420,7 @@ export function ComposeArea({
                   >
                     <span className="size-4 animate-spin rounded-full border-2 border-primary-surface/40 border-t-primary-surface" />
                   </button>
-                ) : sending ? (
+                ) : sending || isToolRequestPending ? (
                   <button
                     type="button"
                     className="size-8 rounded-lg flex items-center justify-center bg-primary cursor-pointer hover:bg-primary-hover transition-colors"

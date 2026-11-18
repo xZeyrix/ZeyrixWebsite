@@ -598,14 +598,31 @@ export async function cancelChatTask(
     console.error("Failed to cancel conversation task", err);
   }
 
-  updateChatStreamMessages(conversationId, (prev) =>
-    prev.map((message, index) => {
-      if (index === prev.findLastIndex((m) => m.role === "assistant")) {
-        return { ...message, status: "cancelled" };
-      }
-      return message;
-    }),
-  );
+  const stoppedPayload = JSON.stringify({
+    error_code: "STOPPED_BY_USER",
+    status_code: 499,
+  });
+
+  updateChatStreamMessages(conversationId, (prev) => {
+    const index = prev.findLastIndex(
+      (m) =>
+        m.role === "assistant" &&
+        (m.status === "pending" ||
+          m.status === "approval_required" ||
+          m.status === "cancelled"),
+    );
+    if (index === -1) return prev;
+    return prev.map((message, i) =>
+      i === index
+        ? {
+            ...message,
+            status: "error",
+            text: stoppedPayload,
+            streamingReasoning: undefined,
+          }
+        : message,
+    );
+  });
 
   abortChatStream(conversationId);
   notifyTaskRunning(conversationId, false);
