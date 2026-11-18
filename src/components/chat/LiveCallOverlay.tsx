@@ -188,7 +188,7 @@ export function LiveCallOverlay({
               {/* Transcript history */}
               <div
                 ref={listRef}
-                className="w-full flex-1 min-h-28 max-h-52 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin"
+                className="w-full flex-1 min-h-28 max-h-52 overflow-y-auto space-y-2 pr-0.5"
               >
                 <AnimatePresence initial={false}>
                   {turns.map((turn) => (
