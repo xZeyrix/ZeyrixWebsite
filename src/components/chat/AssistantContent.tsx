@@ -103,6 +103,8 @@ type AssistantContentProps = {
   text: string;
   attachments?: Attachment[];
   streaming?: boolean;
+  /** When true, <file> tags / attachments are not rendered (pending / active approval). */
+  hideGeneratedFiles?: boolean;
 };
 
 /**
@@ -114,6 +116,7 @@ export function AssistantContent({
   text,
   attachments,
   streaming = false,
+  hideGeneratedFiles = false,
 }: AssistantContentProps) {
   const segments = useMemo(() => parseFileTags(text), [text]);
 
@@ -133,17 +136,24 @@ export function AssistantContent({
     [attachments, inlineIds],
   );
 
-  if (segments.length === 0 && leftover.length === 0) return null;
+  const visibleSegments = hideGeneratedFiles
+    ? segments.filter((s) => s.type === "text")
+    : segments;
+  const visibleLeftover = hideGeneratedFiles ? [] : leftover;
+
+  if (visibleSegments.length === 0 && visibleLeftover.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2 min-w-0">
-      {segments.map((seg, index) => {
+      {visibleSegments.map((seg, index) => {
         if (seg.type === "text") {
           return (
             <MarkdownMessage
               key={`t-${index}`}
               text={seg.value}
-              streaming={streaming && index === segments.length - 1}
+              streaming={
+                streaming && index === visibleSegments.length - 1
+              }
             />
           );
         }
@@ -163,9 +173,9 @@ export function AssistantContent({
         );
       })}
 
-      {leftover.length > 0 && (
+      {visibleLeftover.length > 0 && (
         <div className="flex max-w-full gap-2 overflow-x-auto pb-1 scrollbar-thin overflow-y-hidden">
-          {leftover.map((attachment) => (
+          {visibleLeftover.map((attachment) => (
             <MessageAttachment key={attachment.fileId} {...attachment} />
           ))}
         </div>

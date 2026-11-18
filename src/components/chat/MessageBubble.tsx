@@ -380,13 +380,30 @@ export function MessageBubble({
               </div>
             </div>
 
-            {(text || (attachments && attachments.length > 0)) && (
-              <AssistantContent
-                text={adaptedText}
-                attachments={attachments}
-                streaming={status === "pending"}
-              />
-            )}
+            {(() => {
+              const approvalExpired =
+                Boolean(approvalDetails?.approvalExpiresAt) &&
+                !approvalDetails?.appliedAt &&
+                new Date() > new Date(approvalDetails!.approvalExpiresAt);
+              const hideGeneratedFiles =
+                status === "pending" ||
+                (status === "approval_required" && !approvalExpired);
+
+              if (!text && !(attachments && attachments.length > 0)) {
+                return null;
+              }
+              // Still show text while pending; only suppress file chips
+              if (hideGeneratedFiles && !text) return null;
+
+              return (
+                <AssistantContent
+                  text={adaptedText}
+                  attachments={attachments}
+                  streaming={status === "pending"}
+                  hideGeneratedFiles={hideGeneratedFiles}
+                />
+              );
+            })()}
 
             {status === "completed" && (
               <div className="flex flex-row items-center">
