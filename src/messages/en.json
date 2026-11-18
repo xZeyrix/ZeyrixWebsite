@@ -68,7 +68,12 @@
     "continue": "Continue",
     "decline": "Decline",
     "details": "Details",
-    "failedToLoad": "Failed to load the necessary tool-choose interface.\nTry to reload the page or contact us."
+    "failedToLoad": "Failed to load the necessary tool-choose interface.\nTry to reload the page or contact us.",
+    "declineWithFeedback": "Decline with feedback",
+    "feedbackHint": "Tell the agent what to change",
+    "feedbackPlaceholder": "e.g. Use a different table…",
+    "sendFeedback": "Send feedback",
+    "cancelFeedback": "Cancel"
   },
   "message": {
     "today": "Today",
@@ -250,10 +255,11 @@
     "tryAgain": "Try again"
   },
   "systemMessages": {
-    "clientDisconnected": "### Response interrupted\n\nThe response was interrupted because the connection was lost before the agent could finish.\n\nSome of the agent's steps may have been completed before the interruption.",
+    "clientDisconnected": "### Generation stopped\n\nYou stopped the agent before it finished. Some steps may already have completed.",
     "unknownError": "### Request failed\n\nUnfortunately, the request could not be completed due to an unexpected error.\n\n- **Error code:** `{errorCode}`\n- **Status code:** `{statusCode}`\n- **Request ID:** `{requestId}`\n\nPlease [report this issue]({url}) to our support team. The error details will be included automatically.",
     "unknownErrorReportSubject": "Unknown error",
-    "unknownErrorReportBody": "Hello,\n\nI encountered an unexpected error.\n\nAdditional information:\n[optional - you can add details here]\n\n--- Automatically generated error details ---\nError code: {errorCode}\nStatus code: {statusCode}\nRequest ID: {requestId}\n--- End of automatically generated error details ---\n\nThank you."
+    "unknownErrorReportBody": "Hello,\n\nI encountered an unexpected error.\n\nAdditional information:\n[optional - you can add details here]\n\n--- Automatically generated error details ---\nError code: {errorCode}\nStatus code: {statusCode}\nRequest ID: {requestId}\n--- End of automatically generated error details ---\n\nThank you.",
+    "stoppedByUser": "### Generation stopped\n\nYou stopped the agent before it finished. Some steps may already have completed."
   },
   "menu": {
     "home": "Home",

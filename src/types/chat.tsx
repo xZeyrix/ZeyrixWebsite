@@ -102,6 +102,7 @@ export type Message = {
   applyToolUse: (
     requestId: string,
     action: "confirm" | "reject",
+    feedback?: string,
   ) => Promise<void>;
   retrySendMessage?: (
     id: string,

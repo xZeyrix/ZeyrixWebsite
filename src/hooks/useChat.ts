@@ -846,7 +846,11 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   }
 
   const applyToolUse = useCallback(
-    async (requestId: string, action: "confirm" | "reject") => {
+    async (
+      requestId: string,
+      action: "confirm" | "reject",
+      feedback?: string,
+    ) => {
       const targetChatId = previousChatIdRef.current;
       if (!targetChatId || isChatStreaming(targetChatId)) return;
 
@@ -902,6 +906,9 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
               action: action,
               locale: locale,
               timezone: timezone,
+              ...(feedback && feedback.trim()
+                ? { feedback: feedback.trim() }
+                : {}),
             },
             (event) => {
               receivedStreamEvent = true;
