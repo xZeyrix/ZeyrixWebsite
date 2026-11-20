@@ -17,6 +17,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { format } from "date-fns";
 import { getDateFnsLocale } from "@/src/lib/date-fns-locale";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { AssistantContent, stripFileTags } from "./AssistantContent";
 import { CopyButton } from "./Buttons";
 import { Step } from "./AgentStep";
 import { ApprovalCard } from "./ApprovalCard";
@@ -189,8 +190,8 @@ function adaptText(text: string, status: string, t: _Translator<Record<string, a
     const contactUrl = generateContactUrl(errorCode, statusCode, requestId);
 
     const systemMessage = () => {
-      if (errorCode === "CLIENT_DISCONNECTED") {
-        return t("clientDisconnected");
+      if (errorCode === "STOPPED_BY_USER" || errorCode === "CLIENT_DISCONNECTED") {
+        return t("stoppedByUser");
       } else {
         return t("unknownError", {
           "errorCode": errorCode,
@@ -315,8 +316,8 @@ export function MessageBubble({
         <div className="flex justify-start min-w-0">
           <div className={`
             py-3 rounded-t-[20px] rounded-br-[20px] rounded-bl-sm w-full flex flex-col gap-1 min-w-0
-            ${status === "error" && "border pl-5"}
-            ${status === "error" && errorCode === "CLIENT_DISCONNECTED" ? "border-info" : "border-error"}
+            ${status === "error" && errorCode !== "STOPPED_BY_USER" && errorCode !== "CLIENT_DISCONNECTED" && "border border-error pl-5"}
+            ${status === "error" && (errorCode === "STOPPED_BY_USER" || errorCode === "CLIENT_DISCONNECTED") && "border border-border pl-5"}
           `}>
             <div className="flex flex-col gap-2">
               <div
@@ -379,19 +380,34 @@ export function MessageBubble({
               </div>
             </div>
 
-            {text && <MarkdownMessage text={adaptedText} />}
+            {(() => {
+              const approvalExpired =
+                Boolean(approvalDetails?.approvalExpiresAt) &&
+                !approvalDetails?.appliedAt &&
+                new Date() > new Date(approvalDetails!.approvalExpiresAt);
+              const hideGeneratedFiles =
+                status === "pending" ||
+                (status === "approval_required" && !approvalExpired);
 
-            {attachments && attachments.length > 0 && (
-              <div className="flex max-w-full gap-2 overflow-x-auto pb-1 scrollbar-thin overflow-y-hidden">
-                {attachments.map((attachment) => (
-                  <MessageAttachment key={attachment.fileId} {...attachment} />
-                ))}
-              </div>
-            )}
+              if (!text && !(attachments && attachments.length > 0)) {
+                return null;
+              }
+              // Still show text while pending; only suppress file chips
+              if (hideGeneratedFiles && !text) return null;
+
+              return (
+                <AssistantContent
+                  text={adaptedText}
+                  attachments={attachments}
+                  streaming={status === "pending"}
+                  hideGeneratedFiles={hideGeneratedFiles}
+                />
+              );
+            })()}
 
             {status === "completed" && (
               <div className="flex flex-row items-center">
-                <CopyButton content={adaptedText} />
+                <CopyButton content={stripFileTags(adaptedText)} />
                 <button className="p-2 rounded-lg hover:bg-elevated hover:cursor-pointer">
                   <LikeIcon className="text-foreground size-4" />
                 </button>

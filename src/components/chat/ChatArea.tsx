@@ -1,7 +1,8 @@
 "use client";
-import { Message, Attachment } from "@/src/types/chat";
+import { Message, Attachment, TimelineItem } from "@/src/types/chat";
 import { useConnection } from "../auth/ConnectionContext";
 import { MessageBubble } from "./MessageBubble";
+import { LiveSessionCard } from "./LiveSessionCard";
 import MainLogo from "@/public/icons/logoMain.svg";
 import { useRef, useLayoutEffect, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -11,6 +12,8 @@ type ChatAreaProps = {
   chatId?: string;
   loading: boolean;
   messages: Message[];
+  /** Ordered mix of messages + live sessions; falls back to messages */
+  timeline?: TimelineItem[];
   error: string | null;
   compactEmptyState?: boolean;
   applyToolUse: (
@@ -33,6 +36,7 @@ type ChatAreaProps = {
 export function ChatArea({
   loading,
   messages,
+  timeline,
   compactEmptyState,
   chatId,
   applyToolUse,
@@ -59,9 +63,14 @@ export function ChatArea({
   const [isSettling, setIsSettling] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
+  const items: TimelineItem[] =
+    timeline && timeline.length > 0
+      ? timeline
+      : messages.map((m) => ({ ...m, kind: "message" as const }));
+
   const showLoading = isConnectionLoading || loading;
   const showEmptyState =
-    !showLoading && messages.length === 0 && compactEmptyState;
+    !showLoading && items.length === 0 && compactEmptyState;
   const showMessages = !showLoading && !showEmptyState;
 
   useEffect(() => {
@@ -110,8 +119,8 @@ export function ChatArea({
     if (!container) return;
 
     const isChatSwitch = pendingInstantScrollRef.current;
-    const messagesGrew = messages.length > prevMessagesLenRef.current;
-    prevMessagesLenRef.current = messages.length;
+    const messagesGrew = items.length > prevMessagesLenRef.current;
+    prevMessagesLenRef.current = items.length;
 
     if (!isChatSwitch && !messagesGrew) return;
     if (!isChatSwitch && !shouldAutoScrollRef.current) return;
@@ -136,7 +145,7 @@ export function ChatArea({
         block: "end",
       });
     }
-  }, [messages, showMessages, chatId]);
+  }, [items, showMessages, chatId]);
 
   useEffect(() => {
     if (!showMessages || !shouldAutoScrollRef.current) return;
@@ -150,7 +159,7 @@ export function ChatArea({
     });
     ro.observe(bottom);
     return () => ro.disconnect();
-  }, [showMessages, messages.length]);
+  }, [showMessages, items.length]);
 
   const emptyTitleRef = useRef<string | null>(null);
   if (emptyTitleRef.current === null) {
@@ -227,20 +236,31 @@ export function ChatArea({
     >
       <div className="flex justify-center">
         <div className="max-w-190 w-full flex flex-col gap-3 py-3">
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              {...message}
-              applyToolUse={applyToolUse}
-              retrySendMessage={retrySendMessage}
-              setShouldScroll={setShouldScroll}
-            />
-          ))}
+          {items.map((item) => {
+            if (item.kind === "live_session") {
+              return (
+                <LiveSessionCard
+                  key={item.id}
+                  session={item}
+                  applyToolUse={applyToolUse}
+                />
+              );
+            }
+            return (
+              <MessageBubble
+                key={item.id}
+                {...item}
+                applyToolUse={applyToolUse}
+                retrySendMessage={retrySendMessage}
+                setShouldScroll={setShouldScroll}
+              />
+            );
+          })}
           <div ref={bottomRef} />
         </div>
       </div>
 
-      {messages.length === 0 && error && (
+      {items.length === 0 && error && (
         <div className="flex flex-col gap-5 justify-center items-center min-h-[calc(100%-1.5rem)] min-w-0">
           <div className="flex flex-col gap-2 items-center">
             <h3 className="text-foreground text-h3">{t("failedTitle")}</h3>

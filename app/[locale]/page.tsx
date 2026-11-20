@@ -1,5 +1,5 @@
-import { FooterMobile } from "@/src/components/footer/mobile";
-import { HeaderMobile } from "@/src/components/header/mobile";
+import { Header } from "@/src/components/header/main";
+import { Footer } from "@/src/components/footer/main";
 import { MainHero } from "@/src/components/home/hero";
 import { MainServices } from "@/src/components/home/services";
 import { HowItWorks } from "@/src/components/home/process";
@@ -25,7 +25,7 @@ export default async function Home({
   return (
     <>
       <LocaleAutoRedirect />
-      <HeaderMobile />
+      <Header />
 
       <MainHero />
       <MainServices />
@@ -34,7 +34,7 @@ export default async function Home({
       <MainCTA />
 
       <OpenAgentButton />
-      <FooterMobile />
+      <Footer />
     </>
   )
 }

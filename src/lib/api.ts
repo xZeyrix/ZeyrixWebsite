@@ -12,3 +12,10 @@ export function apiUrl(path: string) {
 export function apiFetch(path: string, init?: RequestInit) {
   return fetch(apiUrl(path), init);
 }
+
+export function wsUrl(path: string) {
+  const http = apiUrl(path);
+  if (http.startsWith("https://")) return `wss://${http.slice("https://".length)}`;
+  if (http.startsWith("http://")) return `ws://${http.slice("http://".length)}`;
+  return http;
+}

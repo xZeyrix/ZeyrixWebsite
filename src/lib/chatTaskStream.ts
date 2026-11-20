@@ -349,6 +349,9 @@ function mergeAttachments(
   return Array.from(map.values());
 }
 
+/** Prevent parallel subscribe storms for the same conversation */
+const subscribeInFlight = new Set<string>();
+
 export type SubscribeResult =
   | "already_streaming"
   | "connected"
@@ -415,6 +418,12 @@ export async function subscribeToChatTask(
     options.signal.addEventListener("abort", onExternalAbort);
   }
 
+  if (subscribeInFlight.has(conversationId)) {
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    return "already_streaming";
+  }
+  subscribeInFlight.add(conversationId);
+
   let initialMessages: Message[] = [];
   try {
     const res = await apiFetch(objectsPath(kind, conversationId), {
@@ -423,9 +432,20 @@ export async function subscribeToChatTask(
     });
     if (res.ok) {
       const data = await res.json();
-      initialMessages = (Array.isArray(data) ? data : []).map(normalizeMessage);
+      const list = Array.isArray(data) ? data : [];
+      // Only message objects participate in task execution / stream preload
+      initialMessages = list
+        .filter((item) => {
+          if (!item || typeof item !== "object") return false;
+          const kind = String(
+            (item as { kind?: string }).kind ?? "message",
+          ).toLowerCase();
+          return kind !== "live_session";
+        })
+        .map((item) => normalizeMessage(item as Message));
     }
   } catch (err) {
+    subscribeInFlight.delete(conversationId);
     options.signal?.removeEventListener("abort", onExternalAbort);
     if (isAbortError(err)) return "aborted";
     // ignore preload errors; stream will still start
@@ -440,6 +460,7 @@ export async function subscribeToChatTask(
         return !Number.isNaN(created) && created >= runAtMs;
       });
       if (alreadyExecuted) {
+        subscribeInFlight.delete(conversationId);
         options.signal?.removeEventListener("abort", onExternalAbort);
         return "already_executed";
       }
@@ -447,11 +468,40 @@ export async function subscribeToChatTask(
   }
 
   const last = initialMessages[initialMessages.length - 1];
+
+  // CRITICAL: if the latest assistant message is already terminal, there is
+  // no backend task to subscribe to. Previously we injected a fake pending
+  // message and still POSTed subscribe_to_task → 400 "no task found".
   if (
-    !last ||
-    last.role !== "assistant" ||
-    (last.status !== "pending" && last.status !== "approval_required")
+    last?.role === "assistant" &&
+    (last.status === "completed" ||
+      last.status === "error" ||
+      last.status === "cancelled")
   ) {
+    subscribeInFlight.delete(conversationId);
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    notifyTaskRunning(conversationId, false);
+    return "no_task";
+  }
+
+  // approval_required: waiting for user, not an active stream task
+  if (last?.role === "assistant" && last.status === "approval_required") {
+    subscribeInFlight.delete(conversationId);
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    notifyTaskRunning(conversationId, false);
+    return "no_task";
+  }
+
+  if (!last || last.role !== "assistant" || last.status !== "pending") {
+    // Only inject a pending placeholder when we still expect a live task
+    // (e.g. empty conversation mid-handoff). Prefer not to subscribe blindly.
+    if (kind === "chat" && last?.role === "assistant") {
+      // Non-pending assistant without terminal status — do not invent work
+      subscribeInFlight.delete(conversationId);
+      options.signal?.removeEventListener("abort", onExternalAbort);
+      notifyTaskRunning(conversationId, false);
+      return "no_task";
+    }
     initialMessages = [
       ...initialMessages,
       {
@@ -512,6 +562,7 @@ export async function subscribeToChatTask(
       });
     }
   } finally {
+    subscribeInFlight.delete(conversationId);
     options.signal?.removeEventListener("abort", onExternalAbort);
 
     const live = getStreamMessages(conversationId);
@@ -547,14 +598,31 @@ export async function cancelChatTask(
     console.error("Failed to cancel conversation task", err);
   }
 
-  updateChatStreamMessages(conversationId, (prev) =>
-    prev.map((message, index) => {
-      if (index === prev.findLastIndex((m) => m.role === "assistant")) {
-        return { ...message, status: "cancelled" };
-      }
-      return message;
-    }),
-  );
+  const stoppedPayload = JSON.stringify({
+    error_code: "STOPPED_BY_USER",
+    status_code: 499,
+  });
+
+  updateChatStreamMessages(conversationId, (prev) => {
+    const index = prev.findLastIndex(
+      (m) =>
+        m.role === "assistant" &&
+        (m.status === "pending" ||
+          m.status === "approval_required" ||
+          m.status === "cancelled"),
+    );
+    if (index === -1) return prev;
+    return prev.map((message, i) =>
+      i === index
+        ? {
+            ...message,
+            status: "error",
+            text: stoppedPayload,
+            streamingReasoning: undefined,
+          }
+        : message,
+    );
+  });
 
   abortChatStream(conversationId);
   notifyTaskRunning(conversationId, false);

@@ -8,6 +8,10 @@ import {
   AgentStep,
   GeneratedFile,
   ConversationKind,
+  LiveSessionObject,
+  LiveSessionStatus,
+  LiveSessionTranscription,
+  TimelineItem,
 } from "../types/chat";
 import { useLocale } from "next-intl";
 import { useConnection } from "../components/auth/ConnectionContext";
@@ -131,6 +135,7 @@ function normalizeMessage(message: Message & {
     [];
   return {
     ...message,
+    kind: "message",
     attachments: [
       ...(message.attachments ?? []).map((att) => {
         const normalized = normalizeAttachment(att);
@@ -146,6 +151,98 @@ function normalizeMessage(message: Message & {
   };
 }
 
+function normalizeLiveSession(raw: Record<string, unknown>): LiveSessionObject {
+  const conversationRaw = Array.isArray(raw.conversation) ? raw.conversation : [];
+  const transcriptionRaw = Array.isArray(raw.transcription)
+    ? raw.transcription
+    : Array.isArray((raw as { transcriptions?: unknown }).transcriptions)
+      ? ((raw as { transcriptions: unknown[] }).transcriptions)
+      : [];
+
+  const durationRaw =
+    raw.durationSeconds ??
+    raw.duration_seconds ??
+    (raw as { duration?: unknown }).duration ??
+    0;
+
+  const createdAt = String(
+    raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+  );
+
+  const statusRaw = String(raw.status ?? "ended").toLowerCase();
+  const status = (
+    ["active", "ended", "error", "interrupted", "cancelled"].includes(statusRaw)
+      ? statusRaw
+      : "ended"
+  ) as LiveSessionStatus;
+
+  return {
+    id: String(raw.id),
+    kind: "live_session",
+    status,
+    conversation: conversationRaw.map((m) =>
+      normalizeMessage(m as Message & { generatedFiles?: GeneratedFile[] }),
+    ),
+    transcription: transcriptionRaw.map((t): LiveSessionTranscription => {
+      const row = t as Record<string, unknown>;
+      const role = String(row.role ?? "user").toLowerCase() === "agent"
+        ? "agent"
+        : "user";
+      return { role, text: String(row.text ?? "") };
+    }),
+    durationSeconds:
+      typeof durationRaw === "number"
+        ? durationRaw
+        : Number.parseFloat(String(durationRaw)) || 0,
+    createdAt,
+  };
+}
+
+/** Parse ConversationObjectUnion list from GET .../objects */
+export function normalizeConversationObjects(data: unknown): {
+  messages: Message[];
+  liveSessions: LiveSessionObject[];
+  timeline: TimelineItem[];
+} {
+  const list = Array.isArray(data) ? data : [];
+  const messages: Message[] = [];
+  const liveSessions: LiveSessionObject[] = [];
+  const timeline: TimelineItem[] = [];
+
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const kind = String(row.kind ?? "message").toLowerCase();
+
+    if (kind === "live_session") {
+      const session = normalizeLiveSession(row);
+      liveSessions.push(session);
+      timeline.push(session);
+    } else {
+      const msg = normalizeMessage(row as Message & { generatedFiles?: GeneratedFile[] });
+      messages.push(msg);
+      timeline.push(msg);
+    }
+  }
+
+  return { messages, liveSessions, timeline };
+}
+
+function mergeTimeline(
+  liveSessions: LiveSessionObject[],
+  messages: Message[],
+): TimelineItem[] {
+  const items: TimelineItem[] = [
+    ...liveSessions,
+    ...messages.map((m) => ({ ...m, kind: "message" as const })),
+  ];
+  items.sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  return items;
+}
+
 export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalStatus | null>>, chatId?: string, kind: ConversationKind = "chat") {
   const [messages, setMessages] = useState<Message[]>(() => {
     if (chatId) {
@@ -154,6 +251,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     }
     return getOptimisticMessages(chatId);
   });
+  const [liveSessions, setLiveSessions] = useState<LiveSessionObject[]>([]);
   const [loading, setLoading] = useState(() => {
     if (!chatId) return false;
     return !isChatStreaming(chatId);
@@ -163,6 +261,8 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [shouldMessagesLoad, setShouldMessagesLoad] = useState(false);
+
+  const timeline = mergeTimeline(liveSessions, messages);
 
   const locale = useLocale();
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -204,9 +304,12 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
     if (!chatId) {
       setMessages([]);
+      setLiveSessions([]);
       setLoading(false);
       return;
     }
+
+    setLiveSessions([]);
 
     const live = getStreamMessages(chatId);
     if (live) {
@@ -261,9 +364,13 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         );
 
         if (!res.ok) throw new Error(`Backend вернул ${res.status}`);
-        const data: Message[] = (await res.json()).map(normalizeMessage);
+        const raw = await res.json();
+        const { messages: data, liveSessions: sessions } =
+          normalizeConversationObjects(raw);
 
         if (!cancelled) {
+          setLiveSessions(sessions);
+
           if (isChatStreaming(chatId)) {
             const live = getStreamMessages(chatId);
             if (live) setMessages(live);
@@ -271,7 +378,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
             return;
           }
 
-          if (data.length > 0) {
+          if (data.length > 0 || sessions.length > 0) {
             clearOptimisticMessages(chatId);
             // Не затираем более «живой» snapshot стрима устаревшим pending с API
             const hasPendingOnly =
@@ -598,6 +705,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
       };
 
       let receivedStreamEvent = false;
+      let receivedTerminalEvent = false; // done / terminal error — do not resubscribe
       let handoffToBackendTask = false;
 
       try {
@@ -613,6 +721,9 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
             },
             (event) => {
               receivedStreamEvent = true;
+              if (event.type === "done" || event.type === "error") {
+                receivedTerminalEvent = true;
+              }
               handleStreamEvent(event, updateLastAssistantMessage);
             },
             userAbort.signal,
@@ -638,12 +749,21 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
             setModalState(apiError.detail ?? null);
           }
 
-          if (
-            receivedStreamEvent ||
-            apiError.code === "STREAM_ERROR"
-          ) {
-            handoffToBackendTask = true;
-            return;
+          // Only hand off if the assistant is still pending locally.
+          // Stream close after a successful run often throws STREAM_ERROR even
+          // when `done` was applied — never resubscribe in that case.
+          {
+            const live = getStreamMessages(targetChatId);
+            const lastAsst = live?.findLast((m) => m.role === "assistant");
+            const stillPending = lastAsst?.status === "pending";
+            if (
+              stillPending &&
+              !receivedTerminalEvent &&
+              (receivedStreamEvent || apiError.code === "STREAM_ERROR")
+            ) {
+              handoffToBackendTask = true;
+              return;
+            }
           }
 
           updateChatStreamMessages(targetChatId, (prev) => {
@@ -680,8 +800,19 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         }
         endChatStream(targetChatId);
 
-        if (handoffToBackendTask) {
-          // Переподписка на ту же task через новый API
+        const lastAssistant = finalMessages?.findLast(
+          (m) => m.role === "assistant",
+        );
+        // Terminal statuses mean the run finished (or paused on approval).
+        // Force isTaskRunning=false so we never resubscribe to a finished task.
+        const finishedLocally =
+          lastAssistant != null &&
+          (lastAssistant.status === "completed" ||
+            lastAssistant.status === "approval_required" ||
+            lastAssistant.status === "error" ||
+            lastAssistant.status === "cancelled");
+
+        if (handoffToBackendTask && !finishedLocally && !receivedTerminalEvent) {
           notifyTaskRunning(targetChatId, true);
           void import("../lib/chatTaskStream").then(({ subscribeToChatTask }) =>
             subscribeToChatTask(targetChatId, "chat", {
@@ -689,6 +820,8 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
             }),
           );
         } else {
+          // Clear isTaskRunning so load/visibility won't call
+          // subscribe_to_task for an already-finished generation.
           notifyTaskRunning(targetChatId, false);
         }
       }
@@ -713,7 +846,11 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   }
 
   const applyToolUse = useCallback(
-    async (requestId: string, action: "confirm" | "reject") => {
+    async (
+      requestId: string,
+      action: "confirm" | "reject",
+      feedback?: string,
+    ) => {
       const targetChatId = previousChatIdRef.current;
       if (!targetChatId || isChatStreaming(targetChatId)) return;
 
@@ -756,61 +893,93 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
         });
       };
 
+      let receivedStreamEvent = false;
+      let receivedTerminalEvent = false;
+      let handoffToBackendTask = false;
+
       try {
-        await streamAI(
-          `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/ai/apply_tool`,
-          {
-            requestId: requestId,
-            action: action,
-            locale: locale,
-            timezone: timezone,
-          },
-          (event) => handleStreamEvent(event, updateApproveRequiredMessage),
-          userAbort.signal,
-        );
-      } catch (err) {
-        if (isAbortError(err) && userAbort.signal.aborted) {
-          updateChatStreamMessages(targetChatId, (prev) =>
-            prev.map((message, index) => {
-              if (index === prev.findLastIndex((m) => m.role === "assistant")) {
-                return { ...message, status: "cancelled" };
+        try {
+          await streamAI(
+            `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/ai/apply_tool`,
+            {
+              requestId: requestId,
+              action: action,
+              locale: locale,
+              timezone: timezone,
+              ...(feedback && feedback.trim()
+                ? { feedback: feedback.trim() }
+                : {}),
+            },
+            (event) => {
+              receivedStreamEvent = true;
+              if (event.type === "done" || event.type === "error") {
+                receivedTerminalEvent = true;
               }
-              return message;
-            }),
+              handleStreamEvent(event, updateApproveRequiredMessage);
+            },
+            userAbort.signal,
           );
-          return;
-        }
-
-        const apiError = parseApiError(err);
-
-        if (apiError.code === "INVITE_REQUIRED") {
-          setModalState(apiError.detail ?? null);
-        }
-
-        const fallbackText =
-          apiError.code === "NETWORK_ERROR" || apiError.code === "STREAM_ERROR"
-            ? apiError.message
-            : apiError.message ||
-              `Failed to handle the request.\nTry again in a moment.\nIf this problem will repeat, please, inform us.`;
-
-        updateChatStreamMessages(targetChatId, (prev) => {
-          const index = prev.findLastIndex(
-            (message) => message.role === "assistant",
-          );
-          if (index === -1) return prev;
-
-          return prev.map((message, i) =>
-            i === index
-              ? {
-                  ...message,
-                  status: "error",
-                  text: fallbackText,
+        } catch (err) {
+          if (isAbortError(err) && userAbort.signal.aborted) {
+            updateChatStreamMessages(targetChatId, (prev) =>
+              prev.map((message, index) => {
+                if (
+                  index === prev.findLastIndex((m) => m.role === "assistant")
+                ) {
+                  return { ...message, status: "cancelled" };
                 }
-              : message,
-          );
-        });
+                return message;
+              }),
+            );
+            return;
+          }
 
-        setError(fallbackText);
+          const apiError = parseApiError(err);
+
+          if (apiError.code === "INVITE_REQUIRED") {
+            setModalState(apiError.detail ?? null);
+          }
+
+          {
+            const live = getStreamMessages(targetChatId);
+            const lastAsst = live?.findLast((m) => m.role === "assistant");
+            const stillPending = lastAsst?.status === "pending";
+            if (
+              stillPending &&
+              !receivedTerminalEvent &&
+              (receivedStreamEvent || apiError.code === "STREAM_ERROR")
+            ) {
+              handoffToBackendTask = true;
+              return;
+            }
+          }
+
+          const fallbackText =
+            apiError.code === "NETWORK_ERROR" ||
+            apiError.code === "STREAM_ERROR"
+              ? apiError.message
+              : apiError.message ||
+                `Failed to handle the request.\nTry again in a moment.\nIf this problem will repeat, please, inform us.`;
+
+          updateChatStreamMessages(targetChatId, (prev) => {
+            const index = prev.findLastIndex(
+              (message) => message.role === "assistant",
+            );
+            if (index === -1) return prev;
+
+            return prev.map((message, i) =>
+              i === index
+                ? {
+                    ...message,
+                    status: "error",
+                    text: fallbackText,
+                  }
+                : message,
+            );
+          });
+
+          setError(fallbackText);
+        }
       } finally {
         const finalMessages = getStreamMessages(targetChatId);
         if (finalMessages) {
@@ -820,7 +989,28 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           }
         }
         endChatStream(targetChatId);
-        notifyTaskRunning(targetChatId, false);
+
+        const lastAssistant = finalMessages?.findLast(
+          (m) => m.role === "assistant",
+        );
+        const finishedLocally =
+          lastAssistant != null &&
+          (lastAssistant.status === "completed" ||
+            lastAssistant.status === "approval_required" ||
+            lastAssistant.status === "error" ||
+            lastAssistant.status === "cancelled");
+
+        if (handoffToBackendTask && !finishedLocally && !receivedTerminalEvent) {
+          notifyTaskRunning(targetChatId, true);
+          void import("../lib/chatTaskStream").then(({ subscribeToChatTask }) =>
+            subscribeToChatTask(targetChatId, "chat", {
+              onEnded: (id) => notifyTaskRunning(id, false),
+            }),
+          );
+        } else {
+          // Same as sendMessage: clear isTaskRunning
+          notifyTaskRunning(targetChatId, false);
+        }
       }
     },
     [locale, timezone, setModalState],
@@ -828,10 +1018,51 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
 
   const stopGeneration = useCallback(() => {
     if (!chatId) return;
+
+    const stoppedPayload = JSON.stringify({
+      error_code: "STOPPED_BY_USER",
+      status_code: 499,
+    });
+
+    const markStopped = (prev: Message[]) => {
+      const index = prev.findLastIndex(
+        (m) =>
+          m.role === "assistant" &&
+          (m.status === "pending" || m.status === "approval_required"),
+      );
+      if (index === -1) return prev;
+      return prev.map((m, i) =>
+        i === index
+          ? {
+              ...m,
+              status: "error" as const,
+              text: stoppedPayload,
+              streamingReasoning: undefined,
+            }
+          : m,
+      );
+    };
+
+    // Local UI update immediately (also covers approval_required with no live stream)
+    setMessages(markStopped);
+    setOptimisticMessages(chatId, markStopped(messagesRef.current));
+
     void import("../lib/chatTaskStream").then(({ cancelChatTask }) =>
       cancelChatTask(chatId, kind),
     );
   }, [chatId, kind]);
 
-  return { messages, loading, error, sending, sendMessage, applyToolUse, retrySendMessage, stopGeneration, setShouldMessagesLoad };
+  return {
+    messages,
+    timeline,
+    liveSessions,
+    loading,
+    error,
+    sending,
+    sendMessage,
+    applyToolUse,
+    retrySendMessage,
+    stopGeneration,
+    setShouldMessagesLoad,
+  };
 }

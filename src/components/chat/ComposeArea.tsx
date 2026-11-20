@@ -8,6 +8,7 @@ import CloseIcon from "@/src/icons/close.svg";
 import ErrorIcon from "@/src/icons/warning.svg";
 import StopIcon from "@/src/icons/stop.svg";
 import ArrowIcon from "@/src/icons/arrow.svg";
+import WaveformIcon from "@/src/icons/waveform.svg";
 
 import { useRef, useState, SetStateAction, Dispatch, useEffect } from "react";
 import { useConnection } from "../auth/ConnectionContext";
@@ -21,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { useChatDraft } from "@/src/hooks/useChatDraftStore";
 import { AccessInfoModalStatus, AccessInfoModal } from "../modals/accessInfo";
 import { notifyChatRouteChanged } from "@/src/hooks/useChatRoute";
+import { LiveCallOverlay } from "./LiveCallOverlay";
 
 type ComposeAreaProps = {
   chatId?: string;
@@ -69,6 +71,7 @@ export function ComposeArea({
     state === "ready" && !failedToLoad && access === "granted" && !creatingChat;
   const pathname = usePathname();
   const [composeError, setComposeError] = useState<"chat-not-created" | "forbidden" | null>(null);
+  const [liveCallOpen, setLiveCallOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -378,7 +381,7 @@ export function ComposeArea({
                   <MicroIcon className={`${canInteract ? "text-foreground-secondary" : "text-foreground-muted/90"} size-5`} />
                 </button>
                 
-                {!sending && !creatingChat ? (
+                {!sending && !isToolRequestPending && !creatingChat && canSend ? (
                   <button
                     disabled={!canSend}
                     className={`
@@ -390,6 +393,24 @@ export function ComposeArea({
                   >
                     <SendIcon className="size-3 text-primary-surface" />
                   </button>
+                ) : !sending && !isToolRequestPending && !creatingChat && !canSend && chatId && !isNewChat ? (
+                  <button
+                    type="button"
+                    disabled={!canInteract || access !== "granted"}
+                    className={`
+                      size-8 rounded-lg flex items-center justify-center
+                      transition-all duration-200
+                      ${canInteract && access === "granted" ? "bg-primary cursor-pointer hover:bg-primary-hover transition-colors" : "bg-primary/50"}
+                    `}
+                    onClick={() => {
+                      if (canInteract && access === "granted" && chatId) {
+                        setLiveCallOpen(true);
+                      }
+                    }}
+                    aria-label="Live voice call"
+                  >
+                    <WaveformIcon className="size-5 text-primary-surface" />
+                  </button>
                 ) : creatingChat ? (
                   <button
                     type="button"
@@ -399,19 +420,16 @@ export function ComposeArea({
                   >
                     <span className="size-4 animate-spin rounded-full border-2 border-primary-surface/40 border-t-primary-surface" />
                   </button>
-                ) : (
+                ) : sending || isToolRequestPending ? (
                   <button
-                    disabled={!sending}
-                    className={`
-                      size-8 rounded-lg flex items-center justify-center
-                      transition-all duration-200
-                      ${sending ? "bg-primary cursor-pointer hover:bg-primary-hover transition-colors" : "bg-primary/50"}
-                    `}
+                    type="button"
+                    className="size-8 rounded-lg flex items-center justify-center bg-primary cursor-pointer hover:bg-primary-hover transition-colors"
                     onClick={stopGeneration}
+                    aria-label="Stop generation"
                   >
                     <StopIcon className="size-4 text-primary-surface" />
                   </button>
-                )}
+                ) : null}
               </>
             )}
           </div>
@@ -447,6 +465,14 @@ export function ComposeArea({
         <p className="sm:hidden">{t("warningCaptionCompact")}</p>
         <p className="hidden sm:inline">{t("warningCaption")}</p>
       </div>
+
+      {chatId && !isNewChat && (
+        <LiveCallOverlay
+          open={liveCallOpen}
+          onClose={() => setLiveCallOpen(false)}
+          chatId={chatId}
+        />
+      )}
     </div>
   );
 }

@@ -182,7 +182,10 @@ export function Step({ kind, status, toolName, isLast, toolDetails, failedGenera
   if (kind === "reasoning") {
     return (
       <div className="pb-3 text-foreground">
-        <MarkdownMessage text={label} />
+        <MarkdownMessage
+          text={label}
+          streaming={status === "in_progress"}
+        />
       </div>
     );
   }

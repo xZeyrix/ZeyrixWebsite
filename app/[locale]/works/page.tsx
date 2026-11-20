@@ -1,5 +1,5 @@
-import { HeaderMobile } from "@/src/components/header/mobile";
-import { FooterMobile } from "@/src/components/footer/mobile";
+import { Header } from "@/src/components/header/main";
+import { Footer } from "@/src/components/footer/main";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
 import { WorksHero } from "@/src/components/works/all/hero";
 import { WorksCatalog } from "@/src/components/works/all/catalog";
@@ -20,13 +20,13 @@ export default async function Services({
     }
 
     return (<div className="mt-14">
-        <HeaderMobile />
+        <Header />
 
         <WorksHero />
         <WorksCatalog />
         <WorksCTA />
         
         <OpenAgentButton />
-        <FooterMobile />
+        <Footer />
     </div>)
 }

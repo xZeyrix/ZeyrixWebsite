@@ -48,6 +48,7 @@ export default function ChatClient({
 
   const {
     messages,
+    timeline,
     loading,
     error,
     sending,
@@ -111,6 +112,7 @@ export default function ChatClient({
             <ChatArea
               chatId={conversationId}
               messages={messages}
+              timeline={timeline}
               loading={loading}
               error={error}
               compactEmptyState
@@ -161,6 +163,7 @@ export default function ChatClient({
           key={`${conversationKind}-${conversationId ?? "new"}`}
           chatId={conversationId}
           messages={messages}
+          timeline={timeline}
           loading={loading}
           error={error}
           applyToolUse={applyToolUse}

@@ -1,5 +1,5 @@
-import { HeaderMobile } from "@/src/components/header/mobile";
-import { FooterMobile } from "@/src/components/footer/mobile";
+import { Header } from "@/src/components/header/main";
+import { Footer } from "@/src/components/footer/main";
 import { OpenAgentButton } from "@/src/components/reusable/buttons";
 import { ServicesHero } from "@/src/components/services/all/hero";
 import { ServicesCatalog } from "@/src/components/services/all/catalog";
@@ -22,7 +22,7 @@ export default async function Services({
     }
 
     return (<div className="mt-14">
-        <HeaderMobile />
+        <Header />
 
         <ServicesHero />
         <ServicesCatalog />
@@ -31,6 +31,6 @@ export default async function Services({
         <ServicesCTA />
         
         <OpenAgentButton />
-        <FooterMobile />
+        <Footer />
     </div>)
 }

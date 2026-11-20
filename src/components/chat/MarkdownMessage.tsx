@@ -7,9 +7,95 @@ import { CopyButton } from "./Buttons";
 
 type Props = {
   text: string;
+  /** When true, incomplete markdown tokens are closed so the parser does not
+   *  swallow the trailing half of a streaming line until the response is done. */
+  streaming?: boolean;
 };
 
-export const MarkdownMessage = memo(function MarkdownMessage({ text }: Props) {
+/**
+ * Soft-close constructs that break remark/react-markdown mid-stream.
+ * Without this, an unclosed ``` / ** / ` / [link often makes the visible
+ * output freeze mid-line until the final complete string arrives.
+ */
+export function stabilizeStreamingMarkdown(raw: string): string {
+  if (!raw) return raw;
+
+  let text = raw;
+
+  // --- Fenced code blocks (``` or ~~~) ---
+  // Count fence lines; if odd, the last fence is still open.
+  const fenceLineRegex = /^ {0,3}([`~]{3,})/gm;
+  const fences: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = fenceLineRegex.exec(text)) !== null) {
+    fences.push(m[1][0]); // '`' or '~'
+  }
+  if (fences.length % 2 === 1) {
+    const ch = fences[fences.length - 1] === "~" ? "~~~" : "```";
+    if (!text.endsWith("\n")) text += "\n";
+    text += ch;
+  }
+
+  // --- Unclosed [link text]( without closing ) ---
+  // Strip a trailing incomplete markdown link so it shows as plain text instead
+  // of vanishing into a broken node.
+  text = text.replace(/\[([^\]]*)\]\(([^)\n]*)$/g, (_full, label, url) => {
+    return url ? `${label} (${url})` : label;
+  });
+  // Unclosed [label without ]
+  text = text.replace(/\[([^\]]*)$/g, "$1");
+
+  // --- Inline code: odd number of single ` outside fences ---
+  // Work on a simplified model: after fence fix, count unescaped `
+  // that are not part of ``` sequences.
+  const withoutTriple = text.replace(/```[\s\S]*?```/g, (block) =>
+    " ".repeat(block.length),
+  );
+  const singleTicks = (withoutTriple.match(/(?<!`)`(?!`)/g) || []).length;
+  if (singleTicks % 2 === 1) {
+    text += "`";
+  }
+
+  // --- Bold/italic markers ** and * (best-effort) ---
+  // Count ** pairs outside code
+  const maskCode = (s: string) =>
+    s
+      .replace(/```[\s\S]*?```/g, (b) => " ".repeat(b.length))
+      .replace(/`[^`]*`/g, (b) => " ".repeat(b.length));
+
+  const masked = maskCode(text);
+  const boldMarks = masked.match(/\*\*/g)?.length ?? 0;
+  if (boldMarks % 2 === 1) {
+    text += "**";
+  }
+
+  // Single * italic — only if odd and not part of **
+  const italicMasked = maskCode(text).replace(/\*\*/g, "  ");
+  const italicMarks = italicMasked.match(/\*/g)?.length ?? 0;
+  if (italicMarks % 2 === 1) {
+    text += "*";
+  }
+
+  // Underscore bold/italic
+  const underBold = maskCode(text).match(/__/g)?.length ?? 0;
+  if (underBold % 2 === 1) text += "__";
+  const underItalic = maskCode(text)
+    .replace(/__/g, "  ")
+    .match(/_/g)?.length ?? 0;
+  if (underItalic % 2 === 1) text += "_";
+
+  // --- Incomplete table row: ensure trailing newline so GFM can parse ---
+  if (/\|[^\n]*$/.test(text) && !text.endsWith("\n")) {
+    text += "\n";
+  }
+
+  return text;
+}
+
+export const MarkdownMessage = memo(function MarkdownMessage({
+  text,
+  streaming = false,
+}: Props) {
   const components = useMemo(
     () => ({
       h1: ({ children }: any) => (
@@ -152,13 +238,18 @@ export const MarkdownMessage = memo(function MarkdownMessage({ text }: Props) {
     [],
   );
 
+  const rendered = useMemo(() => {
+    if (!streaming) return text;
+    return stabilizeStreamingMarkdown(text);
+  }, [text, streaming]);
+
   return (
     <div
       className="font-sans text-body text-foreground max-w-none min-w-0"
       style={{ userSelect: "text", WebkitUserSelect: "text" }}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {text}
+        {rendered}
       </ReactMarkdown>
     </div>
   );

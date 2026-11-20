@@ -88,7 +88,7 @@ export type ApprovalDetails = {
 
 export type Message = {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "live_agent";
   status: "completed" | "pending" | "error" | "approval_required" | "cancelled";
   text: string;
   attachments?: Attachment[];
@@ -97,9 +97,12 @@ export type Message = {
   steps?: AgentStep[];
   streamingReasoning?: string;
   notSent?: boolean;
+  /** Present when loaded from ConversationObjectUnion */
+  kind?: "message";
   applyToolUse: (
     requestId: string,
     action: "confirm" | "reject",
+    feedback?: string,
   ) => Promise<void>;
   retrySendMessage?: (
     id: string,
@@ -109,6 +112,37 @@ export type Message = {
   ) => void;
   setShouldScroll?: (value: SetStateAction<boolean>) => void;
 };
+
+export type LiveSessionStatus =
+  | "active"
+  | "ended"
+  | "error"
+  | "interrupted"
+  | "cancelled";
+
+export type LiveSessionTranscriptionRole = "user" | "agent";
+
+export type LiveSessionTranscription = {
+  role: LiveSessionTranscriptionRole;
+  text: string;
+};
+
+/** Live voice session card in the conversation timeline */
+export type LiveSessionObject = {
+  id: string;
+  kind: "live_session";
+  status: LiveSessionStatus;
+  /** Internal live-agent ↔ main-agent dialogue (same shape as messages) */
+  conversation: Message[];
+  /** User ↔ live-agent speech transcript */
+  transcription: LiveSessionTranscription[];
+  durationSeconds: number;
+  createdAt: string;
+};
+
+export type ConversationObjectUnion = (Message & { kind?: "message" }) | LiveSessionObject;
+
+export type TimelineItem = ConversationObjectUnion;
 
 export type Attachment = {
   fileId: string;

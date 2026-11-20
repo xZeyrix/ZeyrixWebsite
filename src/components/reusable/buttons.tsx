@@ -3,10 +3,13 @@
 import SparkleIcon from "@/src/icons/sparkle.svg";
 import { useRouter } from "next/navigation";
 
-export function PrimaryButton({ text, mode = "full", onClick }: { text: string, mode?: "fit" | "full", onClick?: () => void }) {
+export function PrimaryButton(
+    { text, mode = "full", onClick, height = "medium" }:
+    { text: string, mode?: "fit" | "full", onClick?: () => void, height?: "small" | "medium" | "large" }
+) {
     return (
         <button 
-            className={`py-4 px-6 bg-primary text-background rounded-lg text-btn text-center w-${mode}`}
+            className={`${height === "small" ? "py-2" : height === "medium" ? "py-4" : "py-6"} px-6 bg-primary text-background rounded-lg text-btn text-center w-${mode}`}
             onClick={() => onClick && onClick()}
         >
             {text}
