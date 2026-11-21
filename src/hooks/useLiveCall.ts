@@ -294,10 +294,18 @@ export function useLiveCall(options: UseLiveCallOptions = {}) {
 
       processor.onaudioprocess = (event) => {
         if (generation !== generationRef.current) return;
-        if (mutedRef.current) return; // mic muted — do not send PCM
         const wsNow = wsRef.current;
         if (!wsNow || wsNow.readyState !== WebSocket.OPEN) return;
         try {
+          // Always send a frame while the call is live.
+          // When muted, send silence (zeros) so the server VAD can finalize
+          // the current utterance. Skipping sends entirely used to "hold"
+          // speech until unmute.
+          if (mutedRef.current) {
+            const frames = event.inputBuffer.length;
+            wsNow.send(new ArrayBuffer(frames * 2)); // PCM16 silence
+            return;
+          }
           const input = event.inputBuffer.getChannelData(0);
           wsNow.send(floatTo16BitPCM(input));
         } catch {
@@ -395,12 +403,27 @@ export function useLiveCall(options: UseLiveCallOptions = {}) {
   ]);
 
   const setMuted = useCallback((value: boolean) => {
+    const wasMuted = mutedRef.current;
     mutedRef.current = value;
     setMutedState(value);
-    // Also gate the track so OS/browser indicator matches UX
+    // Gate the track so the OS/browser mic indicator matches UX.
+    // Capture graph keeps running; onaudioprocess sends silence while muted.
     mediaStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = !value;
     });
+
+    // Rising edge of mute: ask the live session to close the current user turn
+    // so speech spoken just before mute is not held until the next unmute.
+    if (value && !wasMuted) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: "audio_stream_end" }));
+        } catch {
+          /* ignore */
+        }
+      }
+    }
   }, []);
 
   const stop = useCallback(() => {
