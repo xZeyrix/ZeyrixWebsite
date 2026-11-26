@@ -555,7 +555,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
   ) {
     switch (event.type) {
       case "step_start": {
-        const newStep: AgentStep = {
+        const incoming: AgentStep = {
           id: event.id,
           kind: event.kind,
           label: event.label,
@@ -566,19 +566,30 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
           failedGeneration: event.failedGeneration,
         };
 
-        updateMessage((message) => ({
-          ...message,
-          streamingReasoning:
-            event.kind === "reasoning"
-              ? undefined
-              : message.streamingReasoning,
-          steps: [
-            ...(message.steps ?? []),
+        updateMessage((message) => {
+          const steps = message.steps ?? [];
+          const label =
             event.kind === "reasoning" && !event.label
-              ? { ...newStep, label: message.streamingReasoning ?? "" }
-              : newStep,
-          ],
-        }));
+              ? (message.streamingReasoning ?? incoming.label)
+              : incoming.label;
+          const newStep = { ...incoming, label };
+          const existingIdx = steps.findIndex((s) => s.id === event.id);
+          const nextSteps =
+            existingIdx >= 0
+              ? steps.map((s, i) =>
+                  i === existingIdx ? { ...s, ...newStep } : s,
+                )
+              : [...steps, newStep];
+
+          return {
+            ...message,
+            streamingReasoning:
+              event.kind === "reasoning"
+                ? undefined
+                : message.streamingReasoning,
+            steps: nextSteps,
+          };
+        });
         break;
       }
 
@@ -867,9 +878,33 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
               message.status === "pending"),
         );
         if (index === -1) return base;
-        return base.map((message, i) =>
-          i === index ? { ...message, status: "pending" as const } : message,
-        );
+        return base.map((message, i) => {
+          if (i !== index) return message;
+          // Optimistically clear awaiting_approval so reload / re-render
+          // does not re-show an already decided ApprovalCard.
+          const steps = message.steps?.map((step) => {
+            if (step.status !== "awaiting_approval" || !step.approvalDetails) {
+              return step;
+            }
+            if (step.approvalDetails.approvalId !== requestId) return step;
+            return {
+              ...step,
+              status: (action === "confirm" ? "in_progress" : "denied") as typeof step.status,
+              approvalDetails: {
+                ...step.approvalDetails,
+                status: (action === "confirm" ? "approved" : "rejected") as NonNullable<
+                  typeof step.approvalDetails
+                >["status"],
+                appliedAt: new Date().toISOString(),
+              },
+            };
+          });
+          return {
+            ...message,
+            status: "pending" as const,
+            steps,
+          };
+        });
       })();
 
       startChatStream(targetChatId, withPending, userAbort);
@@ -1016,8 +1051,11 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     [locale, timezone, setModalState],
   );
 
+  const [stopping, setStopping] = useState(false);
+  const stoppingRef = useRef(false);
+
   const stopGeneration = useCallback(() => {
-    if (!chatId) return;
+    if (!chatId || stoppingRef.current) return;
 
     const stoppedPayload = JSON.stringify({
       error_code: "STOPPED_BY_USER",
@@ -1025,31 +1063,58 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     });
 
     const markStopped = (prev: Message[]) => {
-      const index = prev.findLastIndex(
+      const asstIndex = prev.findLastIndex(
         (m) =>
           m.role === "assistant" &&
           (m.status === "pending" || m.status === "approval_required"),
       );
-      if (index === -1) return prev;
-      return prev.map((m, i) =>
-        i === index
-          ? {
-              ...m,
-              status: "error" as const,
-              text: stoppedPayload,
-              streamingReasoning: undefined,
-            }
-          : m,
+      if (asstIndex === -1) return prev;
+      const userIndex = prev.findLastIndex(
+        (m, i) => i < asstIndex && m.role === "user",
       );
+      return prev.map((m, i) => {
+        if (i === asstIndex) {
+          const elapsedSec = Math.max(
+            m.processingSeconds ?? 0,
+            (Date.now() - new Date(m.createdAt).getTime()) / 1000,
+          );
+          return {
+            ...m,
+            status: "error" as const,
+            text: stoppedPayload,
+            streamingReasoning: undefined,
+            pendingSkeleton: false,
+            processingSeconds: Number.isFinite(elapsedSec)
+              ? elapsedSec
+              : m.processingSeconds,
+          };
+        }
+        if (i === userIndex) {
+          return { ...m, status: "error" as const, notSent: false };
+        }
+        return m;
+      });
     };
 
-    // Local UI update immediately (also covers approval_required with no live stream)
-    setMessages(markStopped);
-    setOptimisticMessages(chatId, markStopped(messagesRef.current));
+    stoppingRef.current = true;
+    setStopping(true);
 
-    void import("../lib/chatTaskStream").then(({ cancelChatTask }) =>
-      cancelChatTask(chatId, kind),
-    );
+    void import("../lib/chatTaskStream")
+      .then(async ({ cancelChatTask }) => {
+        const ok = await cancelChatTask(chatId, kind);
+        // Only mutate local message after backend confirms cancel.
+        // If cancel failed, agent likely finished in the race window — leave UI.
+        // cancelChatTask already updates the stream store; sync React state too
+        // (needed when there was no live session, e.g. approval_required).
+        if (ok) {
+          setMessages(markStopped);
+          setOptimisticMessages(chatId, markStopped(messagesRef.current));
+        }
+      })
+      .finally(() => {
+        stoppingRef.current = false;
+        setStopping(false);
+      });
   }, [chatId, kind]);
 
   return {
@@ -1059,6 +1124,7 @@ export function useChat(setModalState: Dispatch<SetStateAction<AccessInfoModalSt
     loading,
     error,
     sending,
+    stopping,
     sendMessage,
     applyToolUse,
     retrySendMessage,

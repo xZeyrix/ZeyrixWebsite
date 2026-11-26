@@ -160,6 +160,7 @@ export function useChats() {
         for (const item of items) {
           if (item.isTaskRunning && !isChatStreaming(item.id)) {
             void subscribeToChatTask(item.id, kind, {
+              forceRunning: true,
               onEnded: (conversationId) => {
                 markTaskRunning(conversationId, false);
                 if (kind === "task") void refreshTasks();
