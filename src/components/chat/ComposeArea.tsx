@@ -43,6 +43,8 @@ type ComposeAreaProps = {
   isToolRequestPending: boolean;
   failedToLoad: boolean;
   stopGeneration: () => void;
+  /** True while cancel_task request is in flight */
+  stopping?: boolean;
   closeToBottom: boolean;
   setShouldScroll: Dispatch<SetStateAction<boolean>>;
   openContactModal: () => void;
@@ -59,6 +61,7 @@ export function ComposeArea({
   isToolRequestPending,
   failedToLoad,
   stopGeneration,
+  stopping = false,
   closeToBottom,
   setShouldScroll,
   openContactModal,
@@ -411,11 +414,11 @@ export function ComposeArea({
                   >
                     <WaveformIcon className="size-5 text-primary-surface" />
                   </button>
-                ) : creatingChat ? (
+                ) : creatingChat || stopping ? (
                   <button
                     type="button"
                     disabled
-                    aria-label="Creating chat"
+                    aria-label={stopping ? "Stopping" : "Creating chat"}
                     className="size-8 rounded-lg flex items-center justify-center bg-primary/50"
                   >
                     <span className="size-4 animate-spin rounded-full border-2 border-primary-surface/40 border-t-primary-surface" />
