@@ -229,7 +229,7 @@ export function ChatArea({
     <div
       ref={containerRef}
       key={chatId}
-      className="w-full h-full px-6 overflow-y-auto py-3"
+      className="w-full h-full px-6 overflow-y-auto py-3 overflow-x-hidden"
       style={{
         opacity: isVisible ? 1 : 0,
         transition: isSettling ? "none" : "opacity 90ms ease-out",
