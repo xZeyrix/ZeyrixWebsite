@@ -54,6 +54,7 @@ export function ChatArea({
   const isConnectionLoading = state !== "ready";
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevChatIdRef = useRef<string | undefined>(undefined);
   const prevMessagesLenRef = useRef(0);
@@ -119,10 +120,10 @@ export function ChatArea({
     if (!container) return;
 
     const isChatSwitch = pendingInstantScrollRef.current;
-    const messagesGrew = items.length > prevMessagesLenRef.current;
     prevMessagesLenRef.current = items.length;
 
-    if (!isChatSwitch && !messagesGrew) return;
+    // Stick to bottom on content updates (new messages, step/text growth)
+    // unless the user scrolled away (>150px from bottom).
     if (!isChatSwitch && !shouldAutoScrollRef.current) return;
 
     if (isChatSwitch) {
@@ -147,19 +148,20 @@ export function ChatArea({
     }
   }, [items, showMessages, chatId]);
 
+  // Observe the message list height so step/text growth triggers stick-to-bottom
+  // even when React batches updates without a new `items` reference edge case.
   useEffect(() => {
-    if (!showMessages || !shouldAutoScrollRef.current) return;
-    const bottom = bottomRef.current;
-    if (!bottom) return;
+    if (!showMessages) return;
+    const content = contentRef.current;
+    if (!content) return;
 
     const ro = new ResizeObserver(() => {
-      if (shouldAutoScrollRef.current) {
-        bottom.scrollIntoView({ behavior: "smooth", block: "end" })
-      }
+      if (!shouldAutoScrollRef.current) return;
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-    ro.observe(bottom);
+    ro.observe(content);
     return () => ro.disconnect();
-  }, [showMessages, items.length]);
+  }, [showMessages, chatId]);
 
   const emptyTitleRef = useRef<string | null>(null);
   if (emptyTitleRef.current === null) {
@@ -235,7 +237,10 @@ export function ChatArea({
       }}
     >
       <div className="flex justify-center">
-        <div className="max-w-190 w-full flex flex-col gap-3 py-3">
+        <div
+          ref={contentRef}
+          className="max-w-190 w-full flex flex-col gap-3 py-3"
+        >
           {items.map((item) => {
             if (item.kind === "live_session") {
               return (
