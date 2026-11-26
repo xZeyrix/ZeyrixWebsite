@@ -13,83 +13,206 @@ type Props = {
 };
 
 /**
- * Soft-close constructs that break remark/react-markdown mid-stream.
- * Without this, an unclosed ``` / ** / ` / [link often makes the visible
- * output freeze mid-line until the final complete string arrives.
+ * Soft-close / repair constructs that break remark + remark-gfm mid-stream.
+ *
+ * Without this, incomplete tables / fences / emphasis often make the parser
+ * reinterpret the whole tail of the document so newly streamed tokens stop
+ * appearing until the response is complete.
+ *
+ * Strategy (common in streaming MD UIs):
+ * 1. Close unbalanced inline/fence markers so the tail stays visible.
+ * 2. Repair partial GFM tables (header without separator, short rows, missing
+ *    trailing pipes) so remark-gfm keeps rendering a table progressively.
+ * 3. Never drop already-received text — only append synthetic closers.
  */
 export function stabilizeStreamingMarkdown(raw: string): string {
   if (!raw) return raw;
 
   let text = raw;
 
-  // --- Fenced code blocks (``` or ~~~) ---
-  // Count fence lines; if odd, the last fence is still open.
-  const fenceLineRegex = /^ {0,3}([`~]{3,})/gm;
-  const fences: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = fenceLineRegex.exec(text)) !== null) {
-    fences.push(m[1][0]); // '`' or '~'
-  }
-  if (fences.length % 2 === 1) {
-    const ch = fences[fences.length - 1] === "~" ? "~~~" : "```";
-    if (!text.endsWith("\n")) text += "\n";
-    text += ch;
+  // --- 1. Fenced code blocks (``` or ~~~) ---
+  // Count fence lines outside of already-closed pairs; odd => still open.
+  {
+    const fenceLineRegex = /^ {0,3}([`~]{3,})(.*)$/gm;
+    const fences: { ch: string; len: number }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = fenceLineRegex.exec(text)) !== null) {
+      const ch = m[1][0]!;
+      const len = m[1].length;
+      const top = fences[fences.length - 1];
+      if (top && top.ch === ch && len >= top.len) {
+        fences.pop();
+      } else {
+        fences.push({ ch, len });
+      }
+    }
+    if (fences.length > 0) {
+      const top = fences[fences.length - 1]!;
+      if (!text.endsWith("\n")) text += "\n";
+      text += top.ch.repeat(Math.max(3, top.len));
+    }
   }
 
-  // --- Unclosed [link text]( without closing ) ---
-  // Strip a trailing incomplete markdown link so it shows as plain text instead
-  // of vanishing into a broken node.
+  // --- 2. GFM tables (the usual freeze culprit) ---
+  text = repairStreamingTables(text);
+
+  // --- 3. Incomplete markdown links ---
   text = text.replace(/\[([^\]]*)\]\(([^)\n]*)$/g, (_full, label, url) => {
     return url ? `${label} (${url})` : label;
   });
-  // Unclosed [label without ]
   text = text.replace(/\[([^\]]*)$/g, "$1");
 
-  // --- Inline code: odd number of single ` outside fences ---
-  // Work on a simplified model: after fence fix, count unescaped `
-  // that are not part of ``` sequences.
-  const withoutTriple = text.replace(/```[\s\S]*?```/g, (block) =>
-    " ".repeat(block.length),
-  );
-  const singleTicks = (withoutTriple.match(/(?<!`)`(?!`)/g) || []).length;
-  if (singleTicks % 2 === 1) {
-    text += "`";
+  // --- 4. Unbalanced inline code ` ---
+  {
+    const withoutFences = text.replace(/```[\s\S]*?```/g, (b) =>
+      " ".repeat(b.length),
+    );
+    const singleTicks = (withoutFences.match(/(?<!`)`(?!`)/g) || []).length;
+    if (singleTicks % 2 === 1) text += "`";
   }
 
-  // --- Bold/italic markers ** and * (best-effort) ---
-  // Count ** pairs outside code
+  // --- 5. Bold / italic / underline markers ---
   const maskCode = (s: string) =>
     s
       .replace(/```[\s\S]*?```/g, (b) => " ".repeat(b.length))
-      .replace(/`[^`]*`/g, (b) => " ".repeat(b.length));
+      .replace(/`[^`\n]*`/g, (b) => " ".repeat(b.length));
 
-  const masked = maskCode(text);
-  const boldMarks = masked.match(/\*\*/g)?.length ?? 0;
-  if (boldMarks % 2 === 1) {
-    text += "**";
+  {
+    const masked = maskCode(text);
+    if ((masked.match(/\*\*/g)?.length ?? 0) % 2 === 1) text += "**";
+    const italicMasked = maskCode(text).replace(/\*\*/g, "  ");
+    if ((italicMasked.match(/\*/g)?.length ?? 0) % 2 === 1) text += "*";
+    if ((maskCode(text).match(/__/g)?.length ?? 0) % 2 === 1) text += "__";
+    const underItalic = maskCode(text)
+      .replace(/__/g, "  ")
+      .match(/_/g)?.length ?? 0;
+    if (underItalic % 2 === 1) text += "_";
+    // ~~strikethrough
+    if ((maskCode(text).match(/~~/g)?.length ?? 0) % 2 === 1) text += "~~";
   }
 
-  // Single * italic — only if odd and not part of **
-  const italicMasked = maskCode(text).replace(/\*\*/g, "  ");
-  const italicMarks = italicMasked.match(/\*/g)?.length ?? 0;
-  if (italicMarks % 2 === 1) {
-    text += "*";
-  }
-
-  // Underscore bold/italic
-  const underBold = maskCode(text).match(/__/g)?.length ?? 0;
-  if (underBold % 2 === 1) text += "__";
-  const underItalic = maskCode(text)
-    .replace(/__/g, "  ")
-    .match(/_/g)?.length ?? 0;
-  if (underItalic % 2 === 1) text += "_";
-
-  // --- Incomplete table row: ensure trailing newline so GFM can parse ---
-  if (/\|[^\n]*$/.test(text) && !text.endsWith("\n")) {
+  // --- 6. Incomplete list / heading trailing line stays visible ---
+  // Ensure document ends with newline so GFM block parsers finalize the last line.
+  if (text.length > 0 && !text.endsWith("\n")) {
     text += "\n";
   }
 
   return text;
+}
+
+const TABLE_ROW_RE = /^ {0,3}\|.*\|?\s*$/;
+const TABLE_SEP_RE =
+  /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/;
+
+function countTableCells(line: string): number {
+  // Split on |, drop leading/trailing empties from outer pipes
+  let body = line.trim();
+  if (body.startsWith("|")) body = body.slice(1);
+  if (body.endsWith("|")) body = body.slice(0, -1);
+  if (!body.trim()) return 0;
+  return body.split("|").length;
+}
+
+function isSeparatorLine(line: string): boolean {
+  return TABLE_SEP_RE.test(line);
+}
+
+function isTableLikeLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return false;
+  // Must contain a pipe and look like a row (not a plain sentence with one |)
+  if (!t.includes("|")) return false;
+  return TABLE_ROW_RE.test(line) || isSeparatorLine(line) || /^\s*\|/.test(line);
+}
+
+function makeSeparator(cols: number): string {
+  if (cols <= 0) cols = 1;
+  return `| ${Array.from({ length: cols }, () => "---").join(" | ")} |`;
+}
+
+function padTableRow(line: string, cols: number): string {
+  let body = line.trim();
+  const hadLeading = body.startsWith("|");
+  const hadTrailing = body.endsWith("|");
+  if (hadLeading) body = body.slice(1);
+  if (hadTrailing) body = body.slice(0, -1);
+  const cells = body.split("|").map((c) => c.trim());
+  while (cells.length < cols) cells.push("");
+  // Keep extra cells if model sent more — GFM tolerates overflow better than underflow mid-stream
+  return `| ${cells.join(" | ")} |`;
+}
+
+/**
+ * Repair a trailing (possibly incomplete) GFM table so remark-gfm can parse it
+ * while tokens are still arriving.
+ */
+function repairStreamingTables(src: string): string {
+  const lines = src.split("\n");
+  if (lines.length === 0) return src;
+
+  // Find the longest trailing run of table-like lines (allow one blank at very end)
+  let end = lines.length - 1;
+  // drop trailing empty line from consideration but keep it in output
+  const trailingEmpty = lines[end] === "";
+  if (trailingEmpty && end > 0) end -= 1;
+
+  let start = end;
+  while (start >= 0 && isTableLikeLine(lines[start]!)) {
+    start -= 1;
+  }
+  start += 1;
+
+  if (start > end) return src; // no table-like trailing block
+
+  // Prefer starting at a line that looks like a real header (has pipes, not only dashes)
+  // Walk forward to first non-separator table line
+  while (start <= end && isSeparatorLine(lines[start]!)) {
+    start += 1;
+  }
+  if (start > end) return src;
+
+  const block = lines.slice(start, end + 1);
+  if (block.length === 0) return src;
+
+  const header = block[0]!;
+  if (!header.includes("|")) return src;
+
+  const cols = Math.max(1, countTableCells(header));
+  const repaired: string[] = [padTableRow(header, cols)];
+
+  let i = 1;
+  if (i < block.length && isSeparatorLine(block[i]!)) {
+    // Normalize separator to header width
+    repaired.push(makeSeparator(cols));
+    i += 1;
+  } else {
+    // Header without separator — inject one so GFM treats this as a table
+    // instead of a pipe-paragraph that can swallow following text.
+    repaired.push(makeSeparator(cols));
+  }
+
+  for (; i < block.length; i++) {
+    const row = block[i]!;
+    if (isSeparatorLine(row)) {
+      // Extra separator mid-body: keep as normalized separator
+      repaired.push(makeSeparator(cols));
+      continue;
+    }
+    repaired.push(padTableRow(row, cols));
+  }
+
+  const before = lines.slice(0, start);
+  const after = trailingEmpty ? [""] : [];
+  // Ensure blank line before table when previous line is prose (GFM tip)
+  if (
+    before.length > 0 &&
+    before[before.length - 1]!.trim() !== "" &&
+    !isTableLikeLine(before[before.length - 1]!)
+  ) {
+    before.push("");
+  }
+
+  return [...before, ...repaired, ...after].join("\n");
 }
 
 export const MarkdownMessage = memo(function MarkdownMessage({

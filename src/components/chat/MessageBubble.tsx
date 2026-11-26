@@ -284,6 +284,7 @@ export function MessageBubble({
   createdAt,
   processingSeconds,
   streamingReasoning,
+  pendingSkeleton,
   id,
 }: Message) {
   const t = useTranslations("agentSteps");
@@ -296,16 +297,36 @@ export function MessageBubble({
   useEffect(() => {
     setIsStepsExtended(status === "pending");
   }, [status]);
-  const approvalDetails = steps?.at(-1)?.approvalDetails;
   steps = steps ? steps : [];
+  const lastAwaitingStep = [...steps]
+    .reverse()
+    .find((s) => s.status === "awaiting_approval");
+  const approvalDetails =
+    lastAwaitingStep?.approvalDetails ?? steps.at(-1)?.approvalDetails;
+  /** Only show approval UI when the message still requires a decision and the step is still awaiting. */
+  const showApprovalCard =
+    status === "approval_required" &&
+    Boolean(approvalDetails) &&
+    approvalDetails?.status === "pending" &&
+    (lastAwaitingStep?.status === "awaiting_approval" ||
+      steps.at(-1)?.status === "awaiting_approval");
 
   const workingMs = useWorkingDuration(status, createdAt, processingSeconds);
   const workDuration = formatDuration(workingMs, t);
-  const workedFor = processingSeconds
-    ? formatDuration(processingSeconds * 1000, t)
-    : "-";
+  const workedFor =
+    processingSeconds != null && processingSeconds > 0
+      ? formatDuration(processingSeconds * 1000, t)
+      : "-";
 
   const [adaptedText, errorCode] = adaptText(text, status, system_messages_t);
+  // Skeleton only while reconnecting to a running task (pendingSkeleton flag),
+  // never on a normal send where optimistic pending has no steps yet.
+  const isEmptyPending =
+    Boolean(pendingSkeleton) &&
+    status === "pending" &&
+    !text &&
+    steps.length === 0 &&
+    !streamingReasoning;
 
   switch (role) {
     case "user":
@@ -380,6 +401,21 @@ export function MessageBubble({
               </div>
             </div>
 
+            {isEmptyPending && (
+              <div className="mt-2 flex flex-col gap-2 w-full max-w-[min(100%,28rem)]" aria-hidden>
+                {[0, 1, 2].map((item) => (
+                  <div
+                    key={item}
+                    className={`relative h-3.5 overflow-hidden rounded-lg bg-surface ${
+                      item === 0 ? "w-[88%]" : item === 1 ? "w-[72%]" : "w-[56%]"
+                    }`}
+                  >
+                    <div className="absolute inset-0 animate-shimmer bg-linear-to-r from-transparent via-white/10 to-transparent" />
+                  </div>
+                ))}
+              </div>
+            )}
+
             {(() => {
               const approvalExpired =
                 Boolean(approvalDetails?.approvalExpiresAt) &&
@@ -417,7 +453,7 @@ export function MessageBubble({
               </div>
             )}
 
-            {status === "approval_required" && (
+            {showApprovalCard && (
               <ApprovalCard
                 approvalDetails={approvalDetails}
                 applyToolUse={applyToolUse}

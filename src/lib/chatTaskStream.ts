@@ -59,7 +59,7 @@ export function applyStreamEvent(
 ) {
   switch (event.type) {
     case "step_start": {
-      const newStep: AgentStep = {
+      const incoming: AgentStep = {
         id: event.id,
         kind: event.kind,
         label: event.label,
@@ -70,17 +70,28 @@ export function applyStreamEvent(
         failedGeneration: event.failedGeneration,
       };
 
-      updateMessage((message) => ({
-        ...message,
-        streamingReasoning:
-          event.kind === "reasoning" ? undefined : message.streamingReasoning,
-        steps: [
-          ...(message.steps ?? []),
+      updateMessage((message) => {
+        const steps = message.steps ?? [];
+        const label =
           event.kind === "reasoning" && !event.label
-            ? { ...newStep, label: message.streamingReasoning ?? "" }
-            : newStep,
-        ],
-      }));
+            ? (message.streamingReasoning ?? incoming.label)
+            : incoming.label;
+        const newStep = { ...incoming, label };
+        const existingIdx = steps.findIndex((s) => s.id === event.id);
+        const nextSteps =
+          existingIdx >= 0
+            ? steps.map((s, i) =>
+                i === existingIdx ? { ...s, ...newStep } : s,
+              )
+            : [...steps, newStep];
+
+        return {
+          ...message,
+          streamingReasoning:
+            event.kind === "reasoning" ? undefined : message.streamingReasoning,
+          steps: nextSteps,
+        };
+      });
       break;
     }
 
@@ -144,6 +155,8 @@ export async function streamAI(
   body: Record<string, unknown> | undefined,
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal,
+  /** Fired once the HTTP stream is open (before any SSE events). */
+  onOpen?: () => void,
 ) {
   const fetchController = new AbortController();
   let connectTimedOut = false;
@@ -212,6 +225,8 @@ export async function streamAI(
         typeof payload === "string" ? payload : JSON.stringify(payload),
       );
     }
+
+    onOpen?.();
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -366,6 +381,12 @@ export type SubscribeToChatTaskOptions = {
   signal?: AbortSignal;
   /** If set, skip streaming when objects already contain an execution at/after this time */
   nextRunAt?: string | null;
+  /**
+   * Conversation is known to have isTaskRunning on the server.
+   * Subscribe even if the last object is still `approval_required` (user already
+   * confirmed; objects API may lag until stream events update steps).
+   */
+  forceRunning?: boolean;
 };
 
 function objectsPath(kind: ConversationKind, conversationId: string) {
@@ -467,7 +488,7 @@ export async function subscribeToChatTask(
     }
   }
 
-  const last = initialMessages[initialMessages.length - 1];
+  let last = initialMessages[initialMessages.length - 1];
 
   // CRITICAL: if the latest assistant message is already terminal, there is
   // no backend task to subscribe to. Previously we injected a fake pending
@@ -484,18 +505,32 @@ export async function subscribeToChatTask(
     return "no_task";
   }
 
-  // approval_required: waiting for user, not an active stream task
+  // approval_required normally means "waiting for user".
+  // Exception: forceRunning (isTaskRunning from list API) — user already
+  // decided; objects may still lag as approval_required until stream updates.
   if (last?.role === "assistant" && last.status === "approval_required") {
-    subscribeInFlight.delete(conversationId);
-    options.signal?.removeEventListener("abort", onExternalAbort);
-    notifyTaskRunning(conversationId, false);
-    return "no_task";
+    if (!options.forceRunning) {
+      subscribeInFlight.delete(conversationId);
+      options.signal?.removeEventListener("abort", onExternalAbort);
+      notifyTaskRunning(conversationId, false);
+      return "no_task";
+    }
+    initialMessages = initialMessages.map((m, i) =>
+      i === initialMessages.length - 1
+        ? {
+            ...m,
+            status: "pending" as const,
+            pendingSkeleton: true,
+          }
+        : m,
+    );
+    last = initialMessages[initialMessages.length - 1];
   }
 
   if (!last || last.role !== "assistant" || last.status !== "pending") {
     // Only inject a pending placeholder when we still expect a live task
     // (e.g. empty conversation mid-handoff). Prefer not to subscribe blindly.
-    if (kind === "chat" && last?.role === "assistant") {
+    if (kind === "chat" && last?.role === "assistant" && !options.forceRunning) {
       // Non-pending assistant without terminal status — do not invent work
       subscribeInFlight.delete(conversationId);
       options.signal?.removeEventListener("abort", onExternalAbort);
@@ -510,9 +545,22 @@ export async function subscribeToChatTask(
         status: "pending",
         text: "",
         createdAt: new Date().toISOString(),
+        pendingSkeleton: true,
         applyToolUse: async () => {},
       },
     ];
+  } else if (
+    last.status === "pending" &&
+    !last.text &&
+    !(last.steps && last.steps.length > 0)
+  ) {
+    // Resubscribe / reload: empty pending from objects → show skeleton until
+    // the first stream event (not used for optimistic sendMessage path).
+    initialMessages = initialMessages.map((m, i) =>
+      i === initialMessages.length - 1
+        ? { ...m, pendingSkeleton: true }
+        : m,
+    );
   }
 
   startChatStream(conversationId, initialMessages, controller);
@@ -523,6 +571,18 @@ export async function subscribeToChatTask(
       if (index === -1) return prev;
       return prev.map((message, i) =>
         i === index ? updater(message) : message,
+      );
+    });
+  };
+
+  const clearPendingSkeleton = () => {
+    updateChatStreamMessages(conversationId, (prev) => {
+      const index = prev.findLastIndex((m) => m.role === "assistant");
+      if (index === -1) return prev;
+      const msg = prev[index]!;
+      if (!msg.pendingSkeleton) return prev;
+      return prev.map((message, i) =>
+        i === index ? { ...message, pendingSkeleton: false } : message,
       );
     });
   };
@@ -542,6 +602,12 @@ export async function subscribeToChatTask(
         applyStreamEvent(event, updateLastAssistant);
       },
       controller.signal,
+      // Stream is open — leave "resubscribing" UI even if no steps yet
+      () => {
+        didConnect = true;
+        notifyTaskRunning(conversationId, true);
+        clearPendingSkeleton();
+      },
     );
   } catch (err) {
     if (isAbortError(err)) {
@@ -583,19 +649,30 @@ export async function subscribeToChatTask(
   return result;
 }
 
+/**
+ * Ask backend to cancel the active task.
+ * Returns true only when the API acknowledges success — callers should then
+ * mark the local assistant message as stopped. On failure (agent already
+ * finished in the race window), leave UI as-is.
+ */
 export async function cancelChatTask(
   conversationId: string,
   kind: ConversationKind = "chat",
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await apiFetch(`/api/conversations/cancel_task`, {
+    const res = await apiFetch(`/api/conversations/cancel_task`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind, conversationId }),
     });
+    if (!res.ok) {
+      console.error("Failed to cancel conversation task", res.status);
+      return false;
+    }
   } catch (err) {
     console.error("Failed to cancel conversation task", err);
+    return false;
   }
 
   const stoppedPayload = JSON.stringify({
@@ -604,28 +681,43 @@ export async function cancelChatTask(
   });
 
   updateChatStreamMessages(conversationId, (prev) => {
-    const index = prev.findLastIndex(
+    const asstIndex = prev.findLastIndex(
       (m) =>
         m.role === "assistant" &&
         (m.status === "pending" ||
           m.status === "approval_required" ||
           m.status === "cancelled"),
     );
-    if (index === -1) return prev;
-    return prev.map((message, i) =>
-      i === index
-        ? {
-            ...message,
-            status: "error",
-            text: stoppedPayload,
-            streamingReasoning: undefined,
-          }
-        : message,
+    if (asstIndex === -1) return prev;
+    const userIndex = prev.findLastIndex(
+      (m, i) => i < asstIndex && m.role === "user",
     );
+    return prev.map((message, i) => {
+      if (i === asstIndex) {
+        const elapsedSec = Math.max(
+          message.processingSeconds ?? 0,
+          (Date.now() - new Date(message.createdAt).getTime()) / 1000,
+        );
+        return {
+          ...message,
+          status: "error" as const,
+          text: stoppedPayload,
+          streamingReasoning: undefined,
+          pendingSkeleton: false,
+          processingSeconds: Number.isFinite(elapsedSec) ? elapsedSec : message.processingSeconds,
+        };
+      }
+      // Enable retry on the preceding user message (without "not sent" label)
+      if (i === userIndex) {
+        return { ...message, status: "error" as const, notSent: false };
+      }
+      return message;
+    });
   });
 
   abortChatStream(conversationId);
   notifyTaskRunning(conversationId, false);
+  return true;
 }
 
 export function resubscribeRunningTasks(
@@ -634,7 +726,10 @@ export function resubscribeRunningTasks(
 ) {
   for (const item of items) {
     if (!isChatStreaming(item.id)) {
-      void subscribeToChatTask(item.id, item.kind, options);
+      void subscribeToChatTask(item.id, item.kind, {
+        ...options,
+        forceRunning: true,
+      });
     }
   }
 }

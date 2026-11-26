@@ -97,6 +97,11 @@ export type Message = {
   steps?: AgentStep[];
   streamingReasoning?: string;
   notSent?: boolean;
+  /**
+   * Show empty-pending skeleton only while reconnecting to an in-flight task
+   * (page reload / resubscribe), not on a fresh user send.
+   */
+  pendingSkeleton?: boolean;
   /** Present when loaded from ConversationObjectUnion */
   kind?: "message";
   applyToolUse: (

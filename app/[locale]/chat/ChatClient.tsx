@@ -56,6 +56,7 @@ export default function ChatClient({
     applyToolUse,
     retrySendMessage,
     stopGeneration,
+    stopping,
     setShouldMessagesLoad,
   } = useChat(setAccessInfoModalState, conversationId, conversationKind);
 
@@ -136,6 +137,7 @@ export default function ChatClient({
             isToolRequestPending={isToolRequestPending}
             failedToLoad={false}
             stopGeneration={stopGeneration}
+            stopping={stopping}
             closeToBottom={closeToBottom}
             setShouldScroll={setShouldScroll}
             openContactModal={openContactModal}
@@ -193,6 +195,7 @@ export default function ChatClient({
           isToolRequestPending={isToolRequestPending}
           failedToLoad={Boolean(messages.length === 0 && error)}
           stopGeneration={stopGeneration}
+          stopping={stopping}
           closeToBottom={closeToBottom}
           setShouldScroll={setShouldScroll}
           openContactModal={openContactModal}
